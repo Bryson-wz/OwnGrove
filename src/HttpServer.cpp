@@ -54,7 +54,24 @@ bool HttpServer::start(const char* host, int port)
         json << "]";
         res.set_content(json.str(), "application/json");
     });
-
+    server.Get(R"(/api/files/(.+)/download)",[&file_store](const httplib::Request& req, httplib::Response& res){
+        const std::string filename = req.matches[1];
+        const auto filepath = file_store.getFilePath(filename);
+        if(filepath.empty()){
+            res.status = 400;
+            res.set_content("Invalid filename", "text/plain");
+            return;
+        }
+        std::ifstream file(filepath, std::ios::binary);
+        if(!file.is_open()){
+            res.status = 500;
+            res.set_content("Failed to open file", "text/plain");
+            return;
+        }
+        std::ostringstream buffer;
+        buffer<< file.rdbuf();
+        res.set_content(buffer.str(),"application/octet-stream");
+    });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);
 }

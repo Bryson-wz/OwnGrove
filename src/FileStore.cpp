@@ -29,6 +29,14 @@ std::vector<FileInfo> FileStore::listFiles() const
     }
 
     return files;
-}
-
+    }
+bool FileStore::isSafeFilename(const std::string& filename) const{
+    return !filename.empty() && filename.find_first_of("/\\") == std::string::npos;
+    }
+std::filesystem::path FileStore::getFilePath(const std::string& filename) const{
+    if(!isSafeFilename(filename)){
+        return {};
+    }
+    return upload_dir_ / filename;
+    }
 } // namespace photobridge

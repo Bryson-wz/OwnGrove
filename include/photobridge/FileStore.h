@@ -15,10 +15,11 @@ struct FileInfo {
 class FileStore {
 public:
     explicit FileStore(std::filesystem::path upload_dir);
-
+    std::filesystem::path getFilePath(const std::string& filename) const;
     std::vector<FileInfo> listFiles() const;
 
 private:
+    bool isSafeFilename(const std::string& filename) const;
     std::filesystem::path upload_dir_;
 };
 
