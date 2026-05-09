@@ -30,6 +30,21 @@ std::vector<FileInfo> FileStore::listFiles() const
 
     return files;
     }
+bool FileStore::saveFile(const std::string& filename, const std::string& content) const{
+    namespace fs = std::filesystem;
+
+    if(!isSafeFilename(filename)){
+        return false;
+    }
+    fs::create_directories(upload_dir_);
+    const auto filepath = getFilePath(filename);
+    std::ofstream file(filepath, std::ios::binary);
+    if(!file.is_open()){
+        return false;
+    }
+    file.write(content.data(),static_cast<std::streamsize>(content.size()));
+    return file.good();
+}
 bool FileStore::isSafeFilename(const std::string& filename) const{
     return !filename.empty() && filename.find_first_of("/\\") == std::string::npos;
     }

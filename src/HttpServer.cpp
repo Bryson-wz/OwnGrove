@@ -3,23 +3,40 @@
 #include "photobridge/FileStore.h"
 
 #include "httplib.h"
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 
+namespace{
+    std::string getTokenFromEnv(){
+        const char* token = std::getenv("PHOTO_BRIDGE_TOKEN");
+        return token ? token : "";
+    }
+    bool isAuthorized(const httplib::Request& req, const std::string& expected_token){
+        if(expected_token.empty()){
+            return false;
+        }
+        if(!req.has_param("token")){
+            return false;
+        }
+        return req.get_param_value("token") == expected_token;
+        }
+}
 namespace photobridge {
 
 bool HttpServer::start(const char* host, int port)
 {
+    // 创建HTTP服务器实例
     httplib::Server server;
+    const std::string expected_token = getTokenFromEnv();
+    // 创建文件存储实例
     FileStore file_store("data/uploads");
-
+    // 创建健康检查路由
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content("OK", "text/plain");
     });
-
+    // 创建主页路由
     server.Get("/", [](const httplib::Request&, httplib::Response& res) {
         std::ifstream index_file("web/index.html");
         if (!index_file.is_open()) {
@@ -32,8 +49,13 @@ bool HttpServer::start(const char* host, int port)
         index_buffer << index_file.rdbuf();
         res.set_content(index_buffer.str(), "text/html");
     });
-
-    server.Get("/api/files", [&file_store](const httplib::Request&, httplib::Response& res) {
+    // 创建文件列表路由
+    server.Get("/api/files", [&file_store, expected_token](const httplib::Request& req, httplib::Response& res) {
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
         std::ostringstream json;
         json << "[";
 
@@ -54,7 +76,13 @@ bool HttpServer::start(const char* host, int port)
         json << "]";
         res.set_content(json.str(), "application/json");
     });
-    server.Get(R"(/api/files/(.+)/download)",[&file_store](const httplib::Request& req, httplib::Response& res){
+    // 创建文件下载路由
+    server.Get(R"(/api/files/(.+)/download)",[&file_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
         const std::string filename = req.matches[1];
         const auto filepath = file_store.getFilePath(filename);
         if(filepath.empty()){
@@ -76,6 +104,36 @@ bool HttpServer::start(const char* host, int port)
         );
         res.set_content(buffer.str(),"application/octet-stream");
     });
+    server.Post("/api/upload", [&file_store, expected_token](const httplib::Request& req, httplib::Response& res) {
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+    
+        const std::string filename = req.get_param_value("filename");
+        if (filename.empty()) {
+            res.status = 400;
+            res.set_content("Filename is required", "text/plain");
+            return;
+        }
+    
+        if (req.body.empty()) {
+            res.status = 400;
+            res.set_content("File body is empty", "text/plain");
+            return;
+        }
+    
+        if (!file_store.saveFile(filename, req.body)) {
+            res.status = 500;
+            res.set_content("Failed to save file", "text/plain");
+            return;
+        }
+    
+        res.status = 201;
+        res.set_content("File saved successfully", "text/plain");
+    });
+    
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);
 }
