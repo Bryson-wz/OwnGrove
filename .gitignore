@@ -1,0 +1,10 @@
+build/
+data/logs/
+data/uploads/
+config/photobridge.toml
+*.exe
+*.obj
+*.o
+*.log
+.DS_Store
+.vscode/
