@@ -70,6 +70,10 @@ bool HttpServer::start(const char* host, int port)
         }
         std::ostringstream buffer;
         buffer<< file.rdbuf();
+        res.set_header(
+                "Content-Disposition",
+                "attachment; filename=\"" + filename + "\""
+        );
         res.set_content(buffer.str(),"application/octet-stream");
     });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
