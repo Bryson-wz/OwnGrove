@@ -1,5 +1,5 @@
 #include "photobridge/HttpServer.h"
-
+#include "photobridge/MetadataStore.h"
 #include "photobridge/FileStore.h"
 
 #include "httplib.h"
@@ -7,6 +7,10 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+
 
 namespace{
     std::string getTokenFromEnv(){
@@ -22,6 +26,14 @@ namespace{
         }
         return req.get_param_value("token") == expected_token;
         }
+    std::string currentTimestamp(){
+        const auto now = std::chrono::system_clock::now();
+        const auto time = std::chrono::system_clock::to_time_t(now);
+
+        std::ostringstream oss;
+        oss << std::put_time(std::gmtime(&time), "%Y-%m-%dT%H:%M:%SZ");
+        return oss.str();
+    }
 }
 namespace photobridge {
 
@@ -32,6 +44,9 @@ bool HttpServer::start(const char* host, int port)
     const std::string expected_token = getTokenFromEnv();
     // 创建文件存储实例
     FileStore file_store("data/uploads");
+
+    // 创建元数据存储实例
+    MetadataStore metadata_store("data/metadata/files.jsonl");
     // 创建健康检查路由
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content("OK", "text/plain");
@@ -104,7 +119,7 @@ bool HttpServer::start(const char* host, int port)
         );
         res.set_content(buffer.str(),"application/octet-stream");
     });
-    server.Post("/api/upload", [&file_store, expected_token](const httplib::Request& req, httplib::Response& res) {
+    server.Post("/api/upload", [&file_store, &metadata_store, expected_token](const httplib::Request& req, httplib::Response& res) {
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
             res.set_content("Unauthorized", "text/plain");
@@ -126,6 +141,17 @@ bool HttpServer::start(const char* host, int port)
     
         switch (file_store.saveFile(filename, req.body)) {
             case SaveResult::Success:
+                if (!metadata_store.appendFile(FileMetadata{
+                    filename,
+                    req.get_header_value("Content-Type"),
+                    req.body.size(),
+                    currentTimestamp()
+                })) {
+                    res.status = 500;
+                    res.set_content("File saved but metadata write failed", "text/plain");
+                    return;
+                }
+
                 res.status = 201;
                 res.set_content("File saved successfully", "text/plain");
                 return;
@@ -148,7 +174,7 @@ bool HttpServer::start(const char* host, int port)
         }
     });
     //multipart/form-data
-    server.Post("/api/upload-form",[&file_store, expected_token](const httplib::Request& req, httplib::Response& res){
+    server.Post("/api/upload-form",[&file_store, &metadata_store, expected_token](const httplib::Request& req, httplib::Response& res){
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
             res.set_content("Unauthorized", "text/plain");
@@ -163,6 +189,17 @@ bool HttpServer::start(const char* host, int port)
 
         switch (file_store.saveFile(file.filename, file.content)) {
             case SaveResult::Success:
+                if (!metadata_store.appendFile(FileMetadata{
+                    file.filename,
+                    file.content_type,
+                    file.content.size(),
+                    currentTimestamp()
+                })) {
+                    res.status = 500;
+                    res.set_content("File saved but metadata write failed", "text/plain");
+                    return;
+                }
+
                 res.status = 201;
                 res.set_content("File saved successfully", "text/plain");
                 return;
