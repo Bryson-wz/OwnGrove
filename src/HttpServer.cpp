@@ -133,7 +133,27 @@ bool HttpServer::start(const char* host, int port)
         res.status = 201;
         res.set_content("File saved successfully", "text/plain");
     });
-    
+    //multipart/form-data
+    server.Post("/api/upload-form",[&file_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        if(!req.form.has_file("file")){
+            res.status = 400;
+            res.set_content("File is required", "text/plain");
+            return;
+        }
+        const auto& file = req.form.get_file("file");
+        if(!file_store.saveFile(file.filename, file.content)){
+            res.status = 500;
+            res.set_content("Failed to save file", "text/plain");
+            return;
+        }
+        res.status = 201;
+        res.set_content("File saved successfully", "text/plain");
+    });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);
 }

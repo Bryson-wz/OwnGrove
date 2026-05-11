@@ -207,8 +207,26 @@
             background: linear-gradient(135deg, var(--accent), var(--accent-dark));
             font: inherit;
             font-weight: 800;
+            cursor: pointer;
+            opacity: 1;
+            transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 30px rgba(159, 67, 34, 0.28);
+        }
+
+        button:disabled {
             cursor: not-allowed;
-            opacity: 0.72;
+            opacity: 0.52;
+        }
+
+        code {
+            padding: 2px 6px;
+            border-radius: 8px;
+            color: #fff8ed;
+            background: rgba(31, 42, 36, 0.22);
         }
 
         .hint {
@@ -224,6 +242,117 @@
             border-radius: 30px;
             background: var(--card);
             box-shadow: var(--shadow);
+        }
+
+        .button-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .secondary-button {
+            color: #1f2a24;
+            background: rgba(255, 248, 237, 0.86);
+        }
+
+        .secondary-button:hover:not(:disabled) {
+            box-shadow: 0 14px 30px rgba(255, 248, 237, 0.18);
+        }
+
+        .selected-file {
+            margin-top: 10px;
+            color: rgba(255, 248, 237, 0.7);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .message {
+            min-height: 24px;
+            margin-top: 16px;
+            color: rgba(255, 248, 237, 0.78);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .message[data-state="ok"] {
+            color: #a7f3d0;
+        }
+
+        .message[data-state="error"] {
+            color: #fecaca;
+        }
+
+        .file-toolbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .file-count {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .refresh-button {
+            width: auto;
+            min-width: 112px;
+            margin-top: 0;
+            padding: 11px 14px;
+            color: #fff8ed;
+            border-radius: 999px;
+        }
+
+        .file-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .empty-state,
+        .file-item {
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.42);
+        }
+
+        .empty-state {
+            padding: 24px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .file-item {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 16px;
+            align-items: center;
+            padding: 16px;
+        }
+
+        .file-name {
+            overflow-wrap: anywhere;
+            font-weight: 800;
+        }
+
+        .file-meta {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .download-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 82px;
+            padding: 10px 13px;
+            border-radius: 999px;
+            color: #fff8ed;
+            background: var(--green);
+            font-size: 14px;
+            font-weight: 800;
+            text-decoration: none;
         }
 
         .steps {
@@ -284,6 +413,16 @@
             .hero {
                 padding: 30px;
             }
+
+            .button-row,
+            .file-item {
+                grid-template-columns: 1fr;
+            }
+
+            .download-link,
+            .refresh-button {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -310,7 +449,11 @@
                         </div>
                         <div class="status-item">
                             <span>上传接口</span>
-                            <strong class="badge">下一步</strong>
+                            <strong class="badge">已接入</strong>
+                        </div>
+                        <div class="status-item">
+                            <span>网页表单</span>
+                            <strong class="badge">测试中</strong>
                         </div>
                     </div>
                 </aside>
@@ -319,45 +462,37 @@
             <main>
                 <section class="upload-card">
                     <h2>上传原图</h2>
-                    <p>这里先放好未来的上传表单。等你实现 <code>POST /api/upload</code> 后，它就会变成真正的入口。</p>
+                    <p>选择一张照片或文件，浏览器会用 <code>multipart/form-data</code> 调用 <code>/api/upload-form</code>。这里不手动设置 Content-Type，让浏览器自动生成 boundary。</p>
 
-                    <form action="/api/upload" method="post" enctype="multipart/form-data">
+                    <form id="upload-form">
                         <label for="token">访问 token</label>
-                        <input id="token" name="token" type="password" placeholder="第一版用固定 token">
+                        <input id="token" name="token" type="password" autocomplete="current-password" placeholder="输入你的访问 token">
 
-                        <label for="photos">选择照片</label>
-                        <input id="photos" name="photos" type="file" accept="image/*" multiple>
+                        <label for="photo">选择照片或文件</label>
+                        <input id="photo" name="file" type="file" accept="image/*">
+                        <div id="selected-file" class="selected-file">尚未选择文件。</div>
 
-                        <button type="button">上传功能即将接入</button>
+                        <div class="button-row">
+                            <button id="upload-button" type="submit">上传到 PhotoBridge</button>
+                            <button id="clear-button" class="secondary-button" type="button">清空选择</button>
+                        </div>
                     </form>
 
-                    <div class="hint">当前按钮故意不可提交，避免接口还没实现时误以为上传失败。下一步先做文件列表，再接真正上传。</div>
+                    <div id="upload-message" class="message" role="status" aria-live="polite"></div>
+                    <div class="hint">第一版一次上传一个文件，确认稳定后再扩展多选、进度条和重复文件名处理。</div>
                 </section>
 
                 <section class="flow">
-                    <h2>最小闭环</h2>
-                    <div class="steps">
-                        <div class="step">
-                            <div class="num">1</div>
-                            <div>
-                                <strong>上传者选择照片</strong>
-                                <span>手机或电脑浏览器打开 PhotoBridge，选择需要传给另一台设备的原图。</span>
-                            </div>
+                    <div class="file-toolbar">
+                        <div>
+                            <h2>文件中转站</h2>
+                            <div id="file-count" class="file-count">输入 token 后刷新列表。</div>
                         </div>
-                        <div class="step">
-                            <div class="num">2</div>
-                            <div>
-                                <strong>服务器保存文件</strong>
-                                <span>服务端按日期保存到 <code>data/uploads</code>，后续再加入元数据和校验。</span>
-                            </div>
-                        </div>
-                        <div class="step">
-                            <div class="num">3</div>
-                            <div>
-                                <strong>另一台设备下载</strong>
-                                <span>下载者打开网页或链接，拿到原图继续修图，不再依赖设备贴近传输。</span>
-                            </div>
-                        </div>
+                        <button id="refresh-button" class="refresh-button" type="button">刷新列表</button>
+                    </div>
+
+                    <div id="file-list" class="file-list">
+                        <div class="empty-state">列表还没有加载。输入 token 后点击“刷新列表”，就能看到服务器上的文件。</div>
                     </div>
                 </section>
             </main>
@@ -365,5 +500,183 @@
             <footer>PhotoBridge v0.1 · 先跑通，再工程化。</footer>
         </div>
     </div>
+    <script>
+        const tokenInput = document.querySelector("#token");
+        const fileInput = document.querySelector("#photo");
+        const selectedFile = document.querySelector("#selected-file");
+        const uploadForm = document.querySelector("#upload-form");
+        const uploadButton = document.querySelector("#upload-button");
+        const clearButton = document.querySelector("#clear-button");
+        const refreshButton = document.querySelector("#refresh-button");
+        const uploadMessage = document.querySelector("#upload-message");
+        const fileList = document.querySelector("#file-list");
+        const fileCount = document.querySelector("#file-count");
+
+        const savedToken = localStorage.getItem("photobridge-token");
+        if (savedToken) {
+            tokenInput.value = savedToken;
+        }
+
+        function getToken() {
+            return tokenInput.value.trim();
+        }
+
+        function apiUrl(path) {
+            const url = new URL(path, window.location.origin);
+            url.searchParams.set("token", getToken());
+            return url.toString();
+        }
+
+        function setMessage(text, state = "") {
+            uploadMessage.textContent = text;
+            uploadMessage.dataset.state = state;
+        }
+
+        function formatBytes(bytes) {
+            if (bytes < 1024) {
+                return `${bytes} B`;
+            }
+            if (bytes < 1024 * 1024) {
+                return `${(bytes / 1024).toFixed(1)} KB`;
+            }
+            return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+        }
+
+        function renderEmpty(text) {
+            fileList.innerHTML = "";
+            const empty = document.createElement("div");
+            empty.className = "empty-state";
+            empty.textContent = text;
+            fileList.appendChild(empty);
+        }
+
+        function renderFiles(files) {
+            fileList.innerHTML = "";
+
+            if (!files.length) {
+                fileCount.textContent = "当前没有文件。";
+                renderEmpty("服务器上还没有文件。先上传一张照片试试。");
+                return;
+            }
+
+            fileCount.textContent = `共 ${files.length} 个文件`;
+
+            for (const file of files) {
+                const item = document.createElement("article");
+                item.className = "file-item";
+
+                const info = document.createElement("div");
+                const name = document.createElement("div");
+                name.className = "file-name";
+                name.textContent = file.name;
+
+                const meta = document.createElement("div");
+                meta.className = "file-meta";
+                meta.textContent = formatBytes(file.size ?? 0);
+
+                info.append(name, meta);
+
+                const link = document.createElement("a");
+                link.className = "download-link";
+                link.href = apiUrl(`/api/files/${encodeURIComponent(file.name)}/download`);
+                link.textContent = "下载";
+
+                item.append(info, link);
+                fileList.appendChild(item);
+            }
+        }
+
+        async function refreshFiles() {
+            if (!getToken()) {
+                fileCount.textContent = "缺少 token";
+                renderEmpty("请先输入访问 token，再刷新文件列表。");
+                return;
+            }
+
+            refreshButton.disabled = true;
+            fileCount.textContent = "正在读取服务器文件...";
+
+            try {
+                const response = await fetch(apiUrl("/api/files"));
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text || `请求失败：${response.status}`);
+                }
+
+                renderFiles(JSON.parse(text));
+            } catch (error) {
+                fileCount.textContent = "读取失败";
+                renderEmpty(error.message || "文件列表读取失败，请检查 token 或服务器状态。");
+            } finally {
+                refreshButton.disabled = false;
+            }
+        }
+
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files[0];
+            selectedFile.textContent = file
+                ? `${file.name} · ${formatBytes(file.size)}`
+                : "尚未选择文件。";
+        });
+
+        tokenInput.addEventListener("input", () => {
+            localStorage.setItem("photobridge-token", getToken());
+        });
+
+        clearButton.addEventListener("click", () => {
+            fileInput.value = "";
+            selectedFile.textContent = "尚未选择文件。";
+            setMessage("");
+        });
+
+        refreshButton.addEventListener("click", refreshFiles);
+
+        uploadForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            if (!getToken()) {
+                setMessage("请先输入访问 token。", "error");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file) {
+                setMessage("请先选择一个要上传的文件。", "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            uploadButton.disabled = true;
+            setMessage(`正在上传 ${file.name} ...`);
+
+            try {
+                const response = await fetch(apiUrl("/api/upload-form"), {
+                    method: "POST",
+                    body: formData
+                });
+                const text = await response.text();
+
+                if (!response.ok) {
+                    throw new Error(text || `上传失败：${response.status}`);
+                }
+
+                setMessage("上传成功，正在刷新文件列表。", "ok");
+                fileInput.value = "";
+                selectedFile.textContent = "尚未选择文件。";
+                await refreshFiles();
+            } catch (error) {
+                setMessage(error.message || "上传失败，请检查 token 或服务器状态。", "error");
+            } finally {
+                uploadButton.disabled = false;
+            }
+        });
+
+        if (getToken()) {
+            refreshFiles();
+        }
+    </script>
 </body>
 </html>
