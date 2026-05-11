@@ -30,21 +30,29 @@ std::vector<FileInfo> FileStore::listFiles() const
 
     return files;
     }
-bool FileStore::saveFile(const std::string& filename, const std::string& content) const{
+SaveResult FileStore::saveFile(const std::string& filename, const std::string& content) const{
     namespace fs = std::filesystem;
 
     if(!isSafeFilename(filename)){
-        return false;
+        return SaveResult::InvalidFilename;
     }
     fs::create_directories(upload_dir_);
     const auto filepath = getFilePath(filename);
+
+    if(fs::exists(filepath)){
+        return SaveResult::FileExists;
+    }
+    if(content.size() > 1024 * 1024 * 500){ //500MB
+        return SaveResult::FileTooLarge;
+    }
     std::ofstream file(filepath, std::ios::binary);
     if(!file.is_open()){
-        return false;
+        return SaveResult::SaveFailed;
     }
     file.write(content.data(),static_cast<std::streamsize>(content.size()));
-    return file.good();
+    return file.good() ? SaveResult::Success : SaveResult::SaveFailed;
 }
+
 bool FileStore::isSafeFilename(const std::string& filename) const{
     return !filename.empty() && filename.find_first_of("/\\") == std::string::npos;
     }

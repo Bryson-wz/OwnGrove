@@ -124,14 +124,28 @@ bool HttpServer::start(const char* host, int port)
             return;
         }
     
-        if (!file_store.saveFile(filename, req.body)) {
-            res.status = 500;
-            res.set_content("Failed to save file", "text/plain");
-            return;
+        switch (file_store.saveFile(filename, req.body)) {
+            case SaveResult::Success:
+                res.status = 201;
+                res.set_content("File saved successfully", "text/plain");
+                return;
+            case SaveResult::InvalidFilename:
+                res.status = 400;
+                res.set_content("Invalid filename", "text/plain");
+                return;
+            case SaveResult::FileExists:
+                res.status = 409;
+                res.set_content("File already exists", "text/plain");
+                return;
+            case SaveResult::SaveFailed:
+                res.status = 500;
+                res.set_content("Failed to save file", "text/plain");
+                return;
+            case SaveResult::FileTooLarge:
+                res.status = 413;
+                res.set_content("Payload Too Large", "text/plain");
+                return;
         }
-    
-        res.status = 201;
-        res.set_content("File saved successfully", "text/plain");
     });
     //multipart/form-data
     server.Post("/api/upload-form",[&file_store, expected_token](const httplib::Request& req, httplib::Response& res){
@@ -146,13 +160,29 @@ bool HttpServer::start(const char* host, int port)
             return;
         }
         const auto& file = req.form.get_file("file");
-        if(!file_store.saveFile(file.filename, file.content)){
-            res.status = 500;
-            res.set_content("Failed to save file", "text/plain");
-            return;
+
+        switch (file_store.saveFile(file.filename, file.content)) {
+            case SaveResult::Success:
+                res.status = 201;
+                res.set_content("File saved successfully", "text/plain");
+                return;
+            case SaveResult::InvalidFilename:
+                res.status = 400;
+                res.set_content("Invalid filename", "text/plain");
+                return;
+            case SaveResult::FileExists:
+                res.status = 409;
+                res.set_content("File already exists", "text/plain");
+                return;
+            case SaveResult::SaveFailed:
+                res.status = 500;
+                res.set_content("Failed to save file", "text/plain");
+                return;
+            case SaveResult::FileTooLarge:
+                res.status = 413;
+                res.set_content("Payload Too Large", "text/plain");
+                return;
         }
-        res.status = 201;
-        res.set_content("File saved successfully", "text/plain");
     });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);

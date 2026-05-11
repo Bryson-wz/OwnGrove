@@ -13,12 +13,19 @@ struct FileInfo {
     std::uintmax_t size;
 };
 
+enum class SaveResult {
+    Success,
+    InvalidFilename,
+    FileTooLarge,
+    FileExists,
+    SaveFailed,
+};
 class FileStore {
 public:
     explicit FileStore(std::filesystem::path upload_dir);
     std::filesystem::path getFilePath(const std::string& filename) const;
     std::vector<FileInfo> listFiles() const;
-    bool saveFile(const std::string& filename, const std::string& content) const;
+    SaveResult saveFile(const std::string& filename, const std::string& content) const;
 private:
     bool isSafeFilename(const std::string& filename) const;
     std::filesystem::path upload_dir_;
