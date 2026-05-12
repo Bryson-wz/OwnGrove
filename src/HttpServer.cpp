@@ -65,7 +65,7 @@ bool HttpServer::start(const char* host, int port)
         res.set_content(index_buffer.str(), "text/html");
     });
     // 创建文件列表路由
-    server.Get("/api/files", [&file_store, expected_token](const httplib::Request& req, httplib::Response& res) {
+    server.Get("/api/files", [&file_store, &metadata_store, expected_token](const httplib::Request& req, httplib::Response& res) {
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
             res.set_content("Unauthorized", "text/plain");
@@ -75,13 +75,13 @@ bool HttpServer::start(const char* host, int port)
         json << "[";
 
         bool first = true;
-        for (const auto& file : file_store.listFiles()) {
+        for (const auto& file : metadata_store.listFiles()) {
             if (!first) {
                 json << ",";
             }
 
             json << "{";
-            json << "\"name\":\"" << file.name << "\",";
+            json << "\"name\":\"" << file.filename << "\",";
             json << "\"size\":" << file.size;
             json << "}";
 
@@ -220,6 +220,28 @@ bool HttpServer::start(const char* host, int port)
                 res.set_content("Payload Too Large", "text/plain");
                 return;
         }
+    });
+    server.Get("/api/metadata", [&metadata_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const std::string metadata = metadata_store.readAll();
+        res.set_content(metadata, "application/json");
+    });
+    server.Get("/api/metadata/count", [&metadata_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto count = metadata_store.countRecords();
+        std::ostringstream json;
+        json << "{";
+        json << "\"count\":" << count;
+        json << "}";
+        res.set_content(json.str(), "application/json");
     });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);
