@@ -9,6 +9,7 @@ struct FileMetadata {
     std::string contentType;
     std::uintmax_t size;
     std::string uploadedAt;
+    std::string status;
 };
 
 } // namespace photobridge

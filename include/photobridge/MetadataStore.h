@@ -7,6 +7,14 @@
 #include <vector>
 
 namespace photobridge {
+    enum class MetadataIssueType {
+        MissingFile,
+        OrphanFile,
+    };
+    struct MetadataIssue {
+        MetadataIssueType type;
+        std::string filename;
+    };
     class MetadataStore {
         public:
             explicit MetadataStore(std::filesystem::path metadata_path);
@@ -14,6 +22,7 @@ namespace photobridge {
             std::vector<FileMetadata> listFiles() const;
             std::string readAll() const;
             std::uint64_t countRecords() const;
+            std::vector<MetadataIssue> auditAgainstUploads(const std::filesystem::path& upload_dir) const;
         private:
             std::filesystem::path metadata_path_;
         };

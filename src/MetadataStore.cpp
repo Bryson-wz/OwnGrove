@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <unordered_set>
 #include <utility>
 
 namespace{
@@ -75,7 +76,8 @@ namespace photobridge {
         << "\"filename\":\"" << escapeJson(metadata.filename) << "\","
         << "\"content_type\":\"" << escapeJson(metadata.contentType) << "\","
         << "\"size\":" << metadata.size << ","
-        << "\"uploaded_at\":\"" << escapeJson(metadata.uploadedAt) << "\""
+        << "\"uploaded_at\":\"" << escapeJson(metadata.uploadedAt) << "\","
+        << "\"status\":\"" << escapeJson(metadata.status) << "\""
         << "}\n";
 
         return file.good();
@@ -126,11 +128,16 @@ namespace photobridge {
             }
 
             try {
+                const auto status = extractStringField(line, "status");
+                if (status != "completed") {
+                    continue;
+                }
                 files.push_back(FileMetadata{
                     extractStringField(line, "filename"),
                     extractStringField(line, "content_type"),
                     extractUintField(line, "size"),
-                    extractStringField(line, "uploaded_at")
+                    extractStringField(line, "uploaded_at"),
+                    status
                 });
             } catch (...) {
                 continue;
@@ -138,6 +145,37 @@ namespace photobridge {
         }
 
         return files;
+    }
+    std::vector<MetadataIssue> MetadataStore::auditAgainstUploads(const std::filesystem::path& upload_dir) const
+    {
+        std::vector<MetadataIssue> issues;
+        std::unordered_set<std::string> metadata_filenames;
+
+        for (const auto& file : listFiles()) {
+            metadata_filenames.insert(file.filename);
+
+            const auto upload_path = upload_dir / file.filename;
+            if (!std::filesystem::exists(upload_path)) {
+                issues.push_back(MetadataIssue{MetadataIssueType::MissingFile, file.filename});
+            }
+        }
+
+        if (!std::filesystem::exists(upload_dir)) {
+            return issues;
+        }
+
+        for (const auto& entry : std::filesystem::directory_iterator(upload_dir)) {
+            if (!entry.is_regular_file()) {
+                continue;
+            }
+
+            const auto filename = entry.path().filename().string();
+            if (!metadata_filenames.contains(filename)) {
+                issues.push_back(MetadataIssue{MetadataIssueType::OrphanFile, filename});
+            }
+        }
+
+        return issues;
     }
 
 } // namespace photobridge

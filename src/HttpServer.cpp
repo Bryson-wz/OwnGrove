@@ -34,6 +34,45 @@ namespace{
         oss << std::put_time(std::gmtime(&time), "%Y-%m-%dT%H:%M:%SZ");
         return oss.str();
     }
+    const char* metadataIssueTypeToString(photobridge::MetadataIssueType type)
+    {
+        switch (type) {
+            case photobridge::MetadataIssueType::MissingFile:
+                return "MissingFile";
+            case photobridge::MetadataIssueType::OrphanFile:
+                return "OrphanFile";
+        }
+
+        return "Unknown";
+    }
+
+    std::string escapeJson(const std::string& text){
+        std::string escaped;
+        for (char ch : text) {
+            switch (ch) {
+                case '\\':
+                    escaped += "\\\\";
+                    break;
+                case '"':
+                    escaped += "\\\"";
+                    break;
+                case '\n':
+                    escaped += "\\n";
+                    break;
+                case '\r':
+                    escaped += "\\r";
+                    break;
+                case '\t':
+                    escaped += "\\t";
+                    break;
+                default:
+                    escaped += ch;
+                    break;
+            }
+        }
+        return escaped;
+    }
+
 }
 namespace photobridge {
 
@@ -145,7 +184,8 @@ bool HttpServer::start(const char* host, int port)
                     filename,
                     req.get_header_value("Content-Type"),
                     req.body.size(),
-                    currentTimestamp()
+                    currentTimestamp(),
+                    "completed"
                 })) {
                     res.status = 500;
                     res.set_content("File saved but metadata write failed", "text/plain");
@@ -193,7 +233,8 @@ bool HttpServer::start(const char* host, int port)
                     file.filename,
                     file.content_type,
                     file.content.size(),
-                    currentTimestamp()
+                    currentTimestamp(),
+                    "completed"
                 })) {
                     res.status = 500;
                     res.set_content("File saved but metadata write failed", "text/plain");
@@ -243,6 +284,31 @@ bool HttpServer::start(const char* host, int port)
         json << "}";
         res.set_content(json.str(), "application/json");
     });
+
+    server.Get("/api/metadata/audit", [&metadata_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto issues = metadata_store.auditAgainstUploads("data/uploads");
+        std::ostringstream json;
+        json << "[";
+        bool first = true;
+        for(const auto& issue:issues){
+            if(!first){
+                json << ",";
+            }
+            json << "{";
+            json << "\"type\":\"" << metadataIssueTypeToString(issue.type) << "\",";
+            json << "\"filename\":\"" << escapeJson(issue.filename) << "\"";
+            json << "}";
+            first = false;
+        }
+        json << "]";
+        res.set_content(json.str(), "application/json");
+    });
+
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);
 }
