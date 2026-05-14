@@ -5,6 +5,8 @@
 namespace photobridge {
 
 struct FileMetadata {
+    int schemaVersion;
+    std::string op;
     std::string filename;
     std::string contentType;
     std::uintmax_t size;

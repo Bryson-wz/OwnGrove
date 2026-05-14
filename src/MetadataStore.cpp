@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
+#include <unordered_map>
 #include <utility>
 
 namespace{
@@ -59,8 +60,31 @@ namespace{
         const auto value = line.substr(value_start, value_end - value_start);
         return static_cast<std::uint64_t>(std::stoull(value));
     }
+
+    bool writeMetadataRecord(std::ostream& file, const photobridge::FileMetadata& metadata){
+        file << "{"
+        << "\"schema_version\":" << metadata.schemaVersion << ","
+        << "\"op\":\"" << escapeJson(metadata.op) << "\","
+        << "\"filename\":\"" << escapeJson(metadata.filename) << "\","
+        << "\"content_type\":\"" << escapeJson(metadata.contentType) << "\","
+        << "\"size\":" << metadata.size << ","
+        << "\"uploaded_at\":\"" << escapeJson(metadata.uploadedAt) << "\","
+        << "\"status\":\"" << escapeJson(metadata.status) << "\""
+        << "}\n";
+
+        return file.good();
+    }
 }
 namespace photobridge {
+    bool MetadataStore::appendStatusChange(
+        const std::string& filename,
+        const std::string& op,
+        const std::string& status,
+        const std::string& timestamp
+    ) const{
+        return appendFile(FileMetadata{1, op, filename, "", 0, timestamp, status});
+    }
+
     MetadataStore::MetadataStore(std::filesystem::path metadata_path)
     : metadata_path_(std::move(metadata_path))
     {
@@ -72,15 +96,7 @@ namespace photobridge {
         if(!file.is_open()){
             return false;
         }
-        file << "{"
-        << "\"filename\":\"" << escapeJson(metadata.filename) << "\","
-        << "\"content_type\":\"" << escapeJson(metadata.contentType) << "\","
-        << "\"size\":" << metadata.size << ","
-        << "\"uploaded_at\":\"" << escapeJson(metadata.uploadedAt) << "\","
-        << "\"status\":\"" << escapeJson(metadata.status) << "\""
-        << "}\n";
-
-        return file.good();
+        return writeMetadataRecord(file, metadata);
     }
     std::string MetadataStore::readAll() const
     {
@@ -114,36 +130,12 @@ namespace photobridge {
 
     std::vector<FileMetadata> MetadataStore::listFiles() const
     {
-        std::ifstream file(metadata_path_);
-        if (!file.is_open()) {
-            return {};
-        }
-
         std::vector<FileMetadata> files;
-        std::string line;
-
-        while (std::getline(file, line)) {
-            if (line.empty()) {
-                continue;
-            }
-
-            try {
-                const auto status = extractStringField(line, "status");
-                if (status != "completed") {
-                    continue;
-                }
-                files.push_back(FileMetadata{
-                    extractStringField(line, "filename"),
-                    extractStringField(line, "content_type"),
-                    extractUintField(line, "size"),
-                    extractStringField(line, "uploaded_at"),
-                    status
-                });
-            } catch (...) {
-                continue;
+        for(const auto& metadata : listLatestRecords()){
+            if(metadata.status == "completed"){
+                files.push_back(metadata);
             }
         }
-
         return files;
     }
     std::vector<MetadataIssue> MetadataStore::auditAgainstUploads(const std::filesystem::path& upload_dir) const
@@ -177,5 +169,90 @@ namespace photobridge {
 
         return issues;
     }
+    std::vector<FileMetadata> MetadataStore::listLatestRecords() const{
+        std::ifstream file(metadata_path_);
+        if(!file.is_open()){
+            return {};
+        }
+        std::unordered_map<std::string, FileMetadata> latest;
+        std::string line;
 
+        while (std::getline(file, line)) {
+            if (line.empty()) {
+                continue;
+            }
+
+            try {
+                const auto schema_version = extractUintField(line, "schema_version");
+                if (schema_version != 1) continue;
+                const auto filename = extractStringField(line, "filename");
+                if (filename.empty()) continue;
+                FileMetadata metadata{
+                    static_cast<int>(schema_version),
+                    extractStringField(line, "op"),
+                    filename,
+                    extractStringField(line, "content_type"),
+                    extractUintField(line, "size"),
+                    extractStringField(line, "uploaded_at"),
+                    extractStringField(line, "status")
+                };
+                latest[filename] = metadata;
+            } catch (...) {
+                continue;
+            }
+        }
+        std::vector<FileMetadata> files;
+        for(const auto& [filename, metadata]:latest){
+            files.push_back(metadata);
+        }
+        return files;
+    }
+    bool MetadataStore::compact() const{
+        const auto records = listLatestRecords();
+
+        std::filesystem::create_directories(metadata_path_.parent_path());
+        auto tmp_path = metadata_path_;
+        tmp_path += ".tmp";
+        auto backup_path = metadata_path_;
+        backup_path += ".bak";
+
+        {
+            std::ofstream file(tmp_path, std::ios::trunc);
+            if(!file.is_open()){
+                return false;
+            }
+            for(const auto& metadata : records){
+                if(!writeMetadataRecord(file, metadata)){
+                    return false;
+                }
+            }
+        }
+
+        std::error_code ec;
+        const bool had_original = std::filesystem::exists(metadata_path_);
+        if(had_original){
+            std::filesystem::remove(backup_path, ec);
+            ec.clear();
+            std::filesystem::rename(metadata_path_, backup_path, ec);
+            if(ec){
+                std::filesystem::remove(tmp_path);
+                return false;
+            }
+        }
+
+        ec.clear();
+        std::filesystem::rename(tmp_path, metadata_path_, ec);
+        if(ec){
+            std::filesystem::remove(tmp_path);
+            if(had_original){
+                std::error_code restore_ec;
+                std::filesystem::rename(backup_path, metadata_path_, restore_ec);
+            }
+            return false;
+        }
+        if(had_original){
+            std::filesystem::remove(backup_path);
+        }
+        return true;
+    }
 } // namespace photobridge

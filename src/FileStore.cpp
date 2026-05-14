@@ -30,36 +30,58 @@ std::vector<FileInfo> FileStore::listFiles() const
 
     return files;
     }
-SaveResult FileStore::saveFile(const std::string& filename, const std::string& content) const{
-    namespace fs = std::filesystem;
+    SaveResult FileStore::saveFile(const std::string& filename, const std::string& content) const{
+        namespace fs = std::filesystem;
 
-    if(!isSafeFilename(filename)){
-        return SaveResult::InvalidFilename;
-    }
-    fs::create_directories(upload_dir_);
-    const auto filepath = getFilePath(filename);
+        if(!isSafeFilename(filename)){
+            return SaveResult::InvalidFilename;
+        }
+        fs::create_directories(upload_dir_);
+        const auto filepath = getFilePath(filename);
 
-    if(fs::exists(filepath)){
-        return SaveResult::FileExists;
+        if(fs::exists(filepath)){
+            return SaveResult::FileExists;
+        }
+        if(content.size() > 1024 * 1024 * 500){ //500MB
+            return SaveResult::FileTooLarge;
+        }
+        std::ofstream file(filepath, std::ios::binary);
+        if(!file.is_open()){
+            return SaveResult::SaveFailed;
+        }
+        file.write(content.data(),static_cast<std::streamsize>(content.size()));
+        return file.good() ? SaveResult::Success : SaveResult::SaveFailed;
     }
-    if(content.size() > 1024 * 1024 * 500){ //500MB
-        return SaveResult::FileTooLarge;
-    }
-    std::ofstream file(filepath, std::ios::binary);
-    if(!file.is_open()){
-        return SaveResult::SaveFailed;
-    }
-    file.write(content.data(),static_cast<std::streamsize>(content.size()));
-    return file.good() ? SaveResult::Success : SaveResult::SaveFailed;
-}
 
-bool FileStore::isSafeFilename(const std::string& filename) const{
-    return !filename.empty() && filename.find_first_of("/\\") == std::string::npos;
+    bool FileStore::isSafeFilename(const std::string& filename) const{
+        return !filename.empty()
+            && filename.find("..") == std::string::npos
+            && filename.find_first_of("/\\") == std::string::npos;
+        }
+    std::filesystem::path FileStore::getFilePath(const std::string& filename) const{
+        if(!isSafeFilename(filename)){
+            return {};
+        }
+        return upload_dir_ / filename;
+        }
+    DeleteResult FileStore::deleteFile(const std::string& filename) const
+    {
+        if (!isSafeFilename(filename)) {
+            return DeleteResult::InvalidFilename;
+        }
+    
+        const auto path = getFilePath(filename);
+        if (!std::filesystem::exists(path)) {
+            return DeleteResult::NotFound;
+        }
+    
+        std::error_code ec;
+        const bool removed = std::filesystem::remove(path, ec);
+        if (ec || !removed) {
+            return DeleteResult::DeleteFailed;
+        }
+        
+        return DeleteResult::Success;
     }
-std::filesystem::path FileStore::getFilePath(const std::string& filename) const{
-    if(!isSafeFilename(filename)){
-        return {};
-    }
-    return upload_dir_ / filename;
-    }
+        
 } // namespace photobridge

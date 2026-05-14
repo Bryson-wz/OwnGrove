@@ -15,6 +15,7 @@ namespace photobridge {
         MetadataIssueType type;
         std::string filename;
     };
+
     class MetadataStore {
         public:
             explicit MetadataStore(std::filesystem::path metadata_path);
@@ -23,6 +24,14 @@ namespace photobridge {
             std::string readAll() const;
             std::uint64_t countRecords() const;
             std::vector<MetadataIssue> auditAgainstUploads(const std::filesystem::path& upload_dir) const;
+            bool appendStatusChange(
+                const std::string& filename,
+                const std::string& op,
+                const std::string& status,
+                const std::string& timestamp
+            ) const;
+            std::vector<FileMetadata> listLatestRecords() const;
+            bool compact() const;
         private:
             std::filesystem::path metadata_path_;
         };

@@ -20,12 +20,19 @@ enum class SaveResult {
     FileExists,
     SaveFailed,
 };
+enum class DeleteResult {
+    Success,
+    InvalidFilename,
+    NotFound,
+    DeleteFailed
+};
 class FileStore {
 public:
     explicit FileStore(std::filesystem::path upload_dir);
     std::filesystem::path getFilePath(const std::string& filename) const;
     std::vector<FileInfo> listFiles() const;
     SaveResult saveFile(const std::string& filename, const std::string& content) const;
+    DeleteResult deleteFile(const std::string& filename) const;
 private:
     bool isSafeFilename(const std::string& filename) const;
     std::filesystem::path upload_dir_;

@@ -181,6 +181,8 @@ bool HttpServer::start(const char* host, int port)
         switch (file_store.saveFile(filename, req.body)) {
             case SaveResult::Success:
                 if (!metadata_store.appendFile(FileMetadata{
+                    1,
+                    "upload",
                     filename,
                     req.get_header_value("Content-Type"),
                     req.body.size(),
@@ -230,6 +232,8 @@ bool HttpServer::start(const char* host, int port)
         switch (file_store.saveFile(file.filename, file.content)) {
             case SaveResult::Success:
                 if (!metadata_store.appendFile(FileMetadata{
+                    1,
+                    "upload",
                     file.filename,
                     file.content_type,
                     file.content.size(),
@@ -308,7 +312,142 @@ bool HttpServer::start(const char* host, int port)
         json << "]";
         res.set_content(json.str(), "application/json");
     });
-
+    server.Post("/api/metadata/mark-missing", [&metadata_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto filename = req.get_param_value("filename");
+        if(filename.empty()||
+            filename.find("..") != std::string::npos ||
+            filename.find('/') != std::string::npos ||
+            filename.find('\\') != std::string::npos){
+            res.status = 400;
+            res.set_content("Invalid filename", "text/plain");
+            return;
+        }
+        if(!metadata_store.appendStatusChange(filename, "mark-missing", "missing", currentTimestamp())){
+            res.status = 500;
+            res.set_content("Failed to mark file as missing", "text/plain");
+            return;
+        }
+        res.status = 200;
+        res.set_content("File marked as missing", "text/plain");
+        return;
+    });
+    server.Post("/api/metadata/repair",[&metadata_store,expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        int repaired_count = 0;
+        const auto issues = metadata_store.auditAgainstUploads("data/uploads");
+        for(const auto &issue:issues){
+            if(issue.type != MetadataIssueType::MissingFile){
+                continue;
+            }
+            if(!metadata_store.appendStatusChange(issue.filename, "repair-missing", "missing", currentTimestamp())){
+                res.status = 500;
+                res.set_content("Failed to repair file", "text/plain");
+                return;
+            }
+            repaired_count++;
+        }
+        const auto remaining_issues = metadata_store.auditAgainstUploads("data/uploads");
+        std::ostringstream json;
+        json << "{";
+        json << "\"repaired_missing\":" << repaired_count<<",";
+        json << "\"remaining_issues\":" << remaining_issues.size();
+        json << "}";
+        res.status = 200;
+        res.set_content(json.str(), "application/json");
+    });
+    server.Post("/api/metadata/repair-missing", [&metadata_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+    
+        const auto filename = req.get_param_value("filename");
+        if (filename.empty() ||
+            filename.find("..") != std::string::npos ||
+            filename.find('/') != std::string::npos ||
+            filename.find('\\') != std::string::npos) {
+            res.status = 400;
+            res.set_content("Invalid filename", "text/plain");
+            return;
+        }
+    
+        if (!metadata_store.appendStatusChange(filename, "repair-missing", "missing", currentTimestamp())) {
+            res.status = 500;
+            res.set_content("Failed to repair missing file", "text/plain");
+            return;
+        }
+    
+        res.status = 200;
+        res.set_content("Missing file repaired", "text/plain");
+        return;
+    });
+    
+    server.Post("/api/files/delete", [&metadata_store, expected_token, &file_store](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto filename = req.get_param_value("filename");
+        if(filename.empty()||
+            filename.find("..") != std::string::npos ||
+            filename.find('/') != std::string::npos ||
+            filename.find('\\') != std::string::npos){
+            res.status = 400;
+            res.set_content("Invalid filename", "text/plain");
+            return;
+        }
+        switch(file_store.deleteFile(filename)){
+            case DeleteResult::Success:
+                res.status = 200;
+                break;
+            case DeleteResult::InvalidFilename:
+                res.status = 400;
+                res.set_content("Invalid filename", "text/plain");
+                return;
+            case DeleteResult::NotFound:
+                res.status = 404;
+                res.set_content("File not found", "text/plain");
+                return;
+            case DeleteResult::DeleteFailed:
+                res.status = 500;
+                res.set_content("Failed to delete file", "text/plain");
+                return;
+        }
+        if(!metadata_store.appendStatusChange(filename, "delete", "deleted", currentTimestamp())){
+            res.status = 500;
+            res.set_content("Failed to mark file as deleted", "text/plain");
+            return;
+        }
+        res.status = 200;
+        res.set_content("File deleted", "text/plain");
+        return;
+    });
+    server.Post("/api/metadata/compact", [&metadata_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        if(!metadata_store.compact()){
+            res.status = 500;
+            res.set_content("Failed to compact metadata", "text/plain");
+            return;
+        }
+        res.status = 200;
+        res.set_content("Metadata compacted", "text/plain");
+        return;
+    });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);
 }
