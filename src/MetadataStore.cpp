@@ -131,8 +131,10 @@ namespace photobridge {
     std::vector<FileMetadata> MetadataStore::listFiles() const
     {
         std::vector<FileMetadata> files;
-        for(const auto& metadata : listLatestRecords()){
-            if(metadata.status == "completed"){
+        const auto replay_result = replayMetadata();
+    
+        for (const auto& metadata : replay_result.records) {
+            if (metadata.status == "completed") {
                 files.push_back(metadata);
             }
         }
@@ -170,45 +172,15 @@ namespace photobridge {
         return issues;
     }
     std::vector<FileMetadata> MetadataStore::listLatestRecords() const{
-        std::ifstream file(metadata_path_);
-        if(!file.is_open()){
-            return {};
-        }
-        std::unordered_map<std::string, FileMetadata> latest;
-        std::string line;
-
-        while (std::getline(file, line)) {
-            if (line.empty()) {
-                continue;
-            }
-
-            try {
-                const auto schema_version = extractUintField(line, "schema_version");
-                if (schema_version != 1) continue;
-                const auto filename = extractStringField(line, "filename");
-                if (filename.empty()) continue;
-                FileMetadata metadata{
-                    static_cast<int>(schema_version),
-                    extractStringField(line, "op"),
-                    filename,
-                    extractStringField(line, "content_type"),
-                    extractUintField(line, "size"),
-                    extractStringField(line, "uploaded_at"),
-                    extractStringField(line, "status")
-                };
-                latest[filename] = metadata;
-            } catch (...) {
-                continue;
-            }
-        }
-        std::vector<FileMetadata> files;
-        for(const auto& [filename, metadata]:latest){
-            files.push_back(metadata);
-        }
-        return files;
+        return  replayMetadata().records;
     }
     bool MetadataStore::compact() const{
-        const auto records = listLatestRecords();
+
+        const auto replay_result = replayMetadata();
+        if (replay_result.skipped_records > 0) {
+            return false;
+        }
+        const auto& records = replay_result.records;
 
         std::filesystem::create_directories(metadata_path_.parent_path());
         auto tmp_path = metadata_path_;
@@ -254,5 +226,51 @@ namespace photobridge {
             std::filesystem::remove(backup_path);
         }
         return true;
+    }
+    MetadataReplayResult MetadataStore::replayMetadata() const{
+        MetadataReplayResult result;
+        std::ifstream file(metadata_path_);
+        if(!file.is_open())
+        {
+            return result;
+        }
+        std::unordered_map<std::string, FileMetadata> latest;
+        std::string line;
+        while(std::getline(file, line))
+        {
+            if(line.empty()){
+                continue;
+            }
+            result.total_records++;
+            try{
+                const auto schema_version = extractUintField(line, "schema_version");
+                if(schema_version != 1){
+                    result.skipped_records++;
+                    continue;
+                }
+                const auto filename = extractStringField(line, "filename");
+                if(filename.empty()){
+                    result.skipped_records++;
+                    continue;
+                }
+                FileMetadata metadata{
+                    static_cast<int>(schema_version),
+                    extractStringField(line, "op"),
+                    filename,
+                    extractStringField(line, "content_type"),
+                    extractUintField(line, "size"),
+                    extractStringField(line, "uploaded_at"),
+                    extractStringField(line, "status")
+                };
+                latest[filename] = metadata;
+            } catch (...) {
+                result.skipped_records++;
+                continue;
+            }
+        }
+        for(const auto& [filename, metadata]:latest){
+            result.records.push_back(metadata);
+        }
+        return result;
     }
 } // namespace photobridge

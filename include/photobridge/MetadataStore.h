@@ -15,6 +15,11 @@ namespace photobridge {
         MetadataIssueType type;
         std::string filename;
     };
+    struct MetadataReplayResult{
+        std::vector<FileMetadata> records;
+        std::uint64_t skipped_records = 0;
+        std::uint64_t total_records = 0;
+    };
 
     class MetadataStore {
         public:
@@ -34,6 +39,7 @@ namespace photobridge {
             bool compact() const;
         private:
             std::filesystem::path metadata_path_;
+            MetadataReplayResult replayMetadata() const;
         };
 
 } // namespace photobridge
