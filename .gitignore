@@ -2,6 +2,7 @@ build/
 data/logs/
 data/metadata/
 data/uploads/
+data/uploads_tmp/
 config/photobridge.toml
 *.exe
 *.obj

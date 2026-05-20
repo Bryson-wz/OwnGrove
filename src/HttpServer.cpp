@@ -1,6 +1,7 @@
 #include "photobridge/HttpServer.h"
 #include "photobridge/MetadataStore.h"
 #include "photobridge/FileStore.h"
+#include "photobridge/ChunkUploadStore.h"
 
 #include "httplib.h"
 #include <iostream>
@@ -86,6 +87,8 @@ bool HttpServer::start(const char* host, int port)
 
     // 创建元数据存储实例
     MetadataStore metadata_store("data/metadata/files.jsonl");
+    // 创建分块上传存储实例
+    ChunkUploadStore chunk_upload_store("data/uploads_tmp", "data/uploads");
     // 创建健康检查路由
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content("OK", "text/plain");
@@ -446,6 +449,251 @@ bool HttpServer::start(const char* host, int port)
         }
         res.status = 200;
         res.set_content("Metadata compacted", "text/plain");
+        return;
+    });
+    server.Post("/api/uploads/init",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto filename = req.get_param_value("filename");
+        const auto size_text = req.get_param_value("size");
+        const auto chunk_size_text = req.get_param_value("chunk_size");
+        std::uintmax_t total_size = 0;
+        std::uintmax_t chunk_size = 0;
+        try{
+            total_size = static_cast<std::uintmax_t>(std::stoull(size_text));
+            chunk_size = static_cast<std::uintmax_t>(std::stoull(chunk_size_text));
+        }catch(...){
+            res.status = 400;
+            res.set_content("Invalid size or chunk size", "text/plain");
+            return;
+        }
+        const auto init_result = chunk_upload_store.initSession(
+            filename,
+            total_size,
+            chunk_size
+        );
+        switch(init_result.result){
+            case InitResult::Success: {
+                const auto& session = init_result.session;
+
+                std::ostringstream json;
+                json << "{"
+                << "\"result\":\"success\","
+                << "\"session_id\":\"" << session.session_id << "\","
+                << "\"filename\":\"" << session.filename << "\","
+                << "\"total_size\":" << session.total_size << ","
+                << "\"chunk_size\":" << session.chunk_size << ","
+                << "\"chunk_count\":" << session.chunk_count << ","
+                << "\"status\":\"" << session.status << "\""
+                << "}";
+                
+                res.status = 201;
+                res.set_content(json.str(),"application/json");
+                return;
+            }
+            case InitResult::InvalidFilename: {
+                res.status = 400;
+                res.set_content("Invalid filename", "text/plain");
+                return;
+            }
+            case InitResult::InvalidSize: {
+                res.status = 400;
+                res.set_content("Invalid size", "text/plain");
+                return;
+            }
+            case InitResult::FileExists: {
+                res.status = 409;
+                res.set_content("File already exists", "text/plain");
+                return;
+            }
+            case InitResult::InitFailed: {
+                res.status = 500;
+                res.set_content("Failed to initialize upload session", "text/plain");
+                return;
+            }
+        }
+    });
+    server.Post("/api/uploads/chunk",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto session_id = req.get_param_value("session_id");
+        const auto index_text = req.get_param_value("index");
+        const auto chunk = req.body;
+        std::uintmax_t index;
+        try{
+            index = static_cast<std::uintmax_t>(std::stoull(index_text));
+        }catch(...){
+            res.status = 400;
+            res.set_content("Invalid index", "text/plain");
+            return;
+        }
+        const auto save_result = chunk_upload_store.saveChunk(session_id, index, chunk);
+        switch(save_result){
+            case SaveChunkResult::Success: {
+                std::ostringstream json;
+                json << "{\"result\":\"success\"}";
+                res.status = 200;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case SaveChunkResult::InvalidSession: {
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Invalid session\"}";
+                res.status = 400;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case SaveChunkResult::InvalidIndex: {
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Invalid index\"}";
+                res.status = 400;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case SaveChunkResult::EmptyChunk: {
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Empty chunk\"}";
+                res.status = 400;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case SaveChunkResult::SaveFailed: {
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Failed to save chunk\"}";
+                res.status = 500;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+        }
+    });
+    server.Post("/api/uploads/complete",[&chunk_upload_store, expected_token, &metadata_store](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto session_id = req.get_param_value("session_id");
+        const auto complete_result = chunk_upload_store.completeUpload(session_id);
+        switch(complete_result.result){
+            case CompleteUploadResult::Success: {
+                if (!metadata_store.appendFile(FileMetadata{
+                    1,
+                    "chunk-upload-complete",
+                    complete_result.filename,
+                    "",
+                    complete_result.size,
+                    currentTimestamp(),
+                    "completed"
+                })) {
+                    res.status = 500;
+                    res.set_content(
+                        "{\"result\":\"error\",\"error\":\"File merged but metadata write failed\"}",
+                        "application/json"
+                    );
+                    return;
+                }
+                chunk_upload_store.cleanupSession(session_id);
+                std::ostringstream json;
+                json << "{"
+                     << "\"result\":\"success\","
+                     << "\"filename\":\"" << complete_result.filename << "\","
+                     << "\"size\":" << complete_result.size
+                     << "}";
+                res.status = 200;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case CompleteUploadResult::InvalidSession: {
+                res.status = 400;
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Invalid session\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case CompleteUploadResult::SaveFailed: {
+                res.status = 500;
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Failed to complete upload\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case CompleteUploadResult::MissingChunk: {
+                res.status = 409;
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Missing chunk\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case CompleteUploadResult::MergeFailed: {
+                res.status = 500;
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Failed to merge chunks\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+        }
+    });
+    server.Get("/api/uploads/status",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+
+        const auto session_id = req.get_param_value("session_id");
+        const auto status = chunk_upload_store.getUploadStatus(session_id);
+        const auto& session = status.session;
+        if(status.result != UploadStatusResult::Success){
+            res.status = 400;
+            std::ostringstream json;
+            json << "{\"result\":\"error\",\"error\":\"Failed to get status\"}";
+            res.set_content(json.str(), "application/json");
+            return;
+        }
+        std::ostringstream json;
+        json << "{"
+             << "\"result\":\"success\","
+             << "\"session_id\":\"" << escapeJson(session.session_id) << "\","
+             << "\"filename\":\"" << escapeJson(session.filename) << "\","
+             << "\"total_size\":" << session.total_size << ","
+             << "\"chunk_size\":" << session.chunk_size << ","
+             << "\"chunk_count\":" << session.chunk_count << ","
+             << "\"status\":\"" << escapeJson(session.status) << "\","
+             << "\"uploaded_count\":" << status.uploaded_indexes.size() << ","
+             << "\"missing_count\":" << status.missing_indexes.size() << ",";
+
+        json << "\"uploaded_indexes\":[";
+        {
+            bool first = true;
+            for(const auto& index : status.uploaded_indexes){
+                if(!first){
+                    json << ",";
+                }
+                json << index;
+                first = false;
+            }
+            json << "],";
+            json << "\"missing_indexes\":[";
+            first = true;
+            for(const auto& index : status.missing_indexes){
+                if(!first){
+                    json << ",";
+                }
+                json << index;
+                first = false;
+            }
+        }
+        json << "]";
+        json << "}";
+
+        res.status = 200;
+        res.set_content(json.str(), "application/json");
         return;
     });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
