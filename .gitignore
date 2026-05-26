@@ -3,6 +3,7 @@ data/logs/
 data/metadata/
 data/uploads/
 data/uploads_tmp/
+docs/performance-results.jsonl
 config/photobridge.toml
 *.exe
 *.obj

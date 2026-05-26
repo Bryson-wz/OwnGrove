@@ -63,6 +63,11 @@ flowchart LR
 - `MetadataStore`：管理 append-only metadata log、状态 replay、audit、repair 和 compaction。
 - `ChunkUploadStore`：管理分片上传 session、chunk 临时目录、status 查询和 complete 合并。
 
+更完整的系统设计与性能观测说明：
+
+- [存储系统设计](docs/storage-design.md)：数据路径、元数据路径、故障恢复路径和 V3.0 演进方向。
+- [性能观测与 Benchmark](docs/performance.md)：分片上传 benchmark、吞吐、P95 chunk 延迟和 complete 合并成本。
+
 ## 项目结构
 
 ```text

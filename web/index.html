@@ -4,675 +4,1263 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PhotoBridge</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #f4efe6;
-            --ink: #1f2a24;
-            --muted: #6f776f;
-            --card: rgba(255, 252, 245, 0.86);
-            --line: rgba(31, 42, 36, 0.14);
-            --accent: #d86836;
-            --accent-dark: #9f4322;
-            --green: #2f6f57;
-            --shadow: 0 24px 80px rgba(56, 45, 32, 0.16);
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --bg-card-hover: rgba(255, 255, 255, 0.06);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(139, 92, 246, 0.3);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8b8b9e;
+            --text-muted: #5a5a6e;
+            --accent-start: #8b5cf6;
+            --accent-end: #06b6d4;
+            --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --radius: 16px;
+            --radius-sm: 10px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
-            margin: 0;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, sans-serif;
             min-height: 100vh;
-            color: var(--ink);
-            font-family: "Microsoft YaHei", "Noto Serif SC", Georgia, serif;
-            background:
-                radial-gradient(circle at 16% 14%, rgba(216, 104, 54, 0.22), transparent 32rem),
-                radial-gradient(circle at 86% 10%, rgba(47, 111, 87, 0.18), transparent 30rem),
-                linear-gradient(135deg, #fbf7ee 0%, var(--bg) 54%, #eadfce 100%);
+            overflow-x: hidden;
         }
 
-        .grain {
-            min-height: 100vh;
-            padding: 56px 22px;
+        .bg-grid {
+            position: fixed;
+            inset: 0;
             background-image:
-                linear-gradient(rgba(31, 42, 36, 0.035) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(31, 42, 36, 0.035) 1px, transparent 1px);
-            background-size: 28px 28px;
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
         }
 
-        .shell {
-            width: min(1080px, 100%);
+        .bg-glow {
+            position: fixed;
+            top: -40%;
+            left: -20%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(ellipse, rgba(139, 92, 246, 0.08) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-glow-2 {
+            position: fixed;
+            bottom: -40%;
+            right: -20%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(ellipse, rgba(6, 182, 212, 0.06) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .app {
+            position: relative;
+            z-index: 1;
+            max-width: 1280px;
             margin: 0 auto;
+            padding: 2rem 1.5rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        header {
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0 2.5rem;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 3rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: var(--accent-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+        }
+
+        .logo-text {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .token-input-wrap {
+            position: relative;
+        }
+
+        .token-input-wrap input {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 0.6rem 1rem 0.6rem 2.4rem;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            outline: none;
+            width: 220px;
+            transition: all 0.3s ease;
+        }
+
+        .token-input-wrap input:focus {
+            border-color: var(--accent-start);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        .token-input-wrap input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .token-input-wrap::before {
+            content: '🔑';
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.85rem;
+            opacity: 0.6;
+        }
+
+        /* Main Grid */
+        .main-grid {
             display: grid;
-            grid-template-columns: 1.2fr 0.8fr;
-            gap: 26px;
-            align-items: stretch;
-            margin-bottom: 26px;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            flex: 1;
         }
 
-        .hero,
-        .panel {
-            border: 1px solid var(--line);
-            border-radius: 30px;
-            background: var(--card);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(18px);
+        @media (min-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1.1fr 0.9fr;
+                gap: 2.5rem;
+            }
         }
 
-        .hero {
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 2rem;
+            backdrop-filter: blur(12px);
+            transition: border-color 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.8rem;
+        }
+
+        .card-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--text-secondary);
+        }
+
+        .card-badge {
+            font-size: 0.65rem;
+            font-weight: 500;
+            padding: 0.3rem 0.7rem;
+            border-radius: 20px;
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--accent-start);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        /* Drop Area */
+        .drop-area {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
-            padding: 42px;
         }
 
-        .hero::after {
-            content: "";
+        .drop-area::before {
+            content: '';
             position: absolute;
-            right: -90px;
-            bottom: -110px;
-            width: 260px;
-            height: 260px;
-            border-radius: 50%;
-            border: 34px solid rgba(216, 104, 54, 0.16);
+            inset: 0;
+            background: var(--accent-gradient);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            border-radius: inherit;
         }
 
-        .eyebrow {
-            display: inline-flex;
-            gap: 8px;
-            align-items: center;
-            margin-bottom: 26px;
-            padding: 8px 12px;
-            border: 1px solid rgba(47, 111, 87, 0.22);
-            border-radius: 999px;
-            color: var(--green);
-            font-size: 13px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
+        .drop-area:hover, .drop-area.dragover {
+            border-color: var(--accent-start);
+            transform: translateY(-2px);
         }
 
-        h1 {
-            max-width: 760px;
-            margin: 0;
-            font-size: clamp(44px, 7vw, 92px);
-            line-height: 0.9;
-            letter-spacing: -0.06em;
+        .drop-area:hover::before, .drop-area.dragover::before {
+            opacity: 0.03;
         }
 
-        .hero p {
-            max-width: 620px;
-            margin: 24px 0 0;
-            color: var(--muted);
-            font-size: 18px;
-            line-height: 1.8;
+        .drop-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            opacity: 0.7;
+            transition: transform 0.3s ease;
+            position: relative;
         }
 
-        .panel {
-            padding: 28px;
+        .drop-area:hover .drop-icon {
+            transform: translateY(-4px);
         }
 
-        .panel h2,
-        .flow h2 {
-            margin: 0 0 18px;
-            font-size: 22px;
+        .drop-text {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            position: relative;
         }
 
-        .status {
-            display: grid;
-            gap: 14px;
+        .drop-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            position: relative;
         }
 
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 14px 0;
-            border-bottom: 1px solid var(--line);
-            color: var(--muted);
-        }
-
-        .status-item:last-child {
-            border-bottom: 0;
-        }
-
-        .badge {
-            flex: 0 0 auto;
-            color: var(--green);
-            font-weight: 800;
-        }
-
-        main {
-            display: grid;
-            grid-template-columns: 0.9fr 1.1fr;
-            gap: 26px;
-        }
-
-        .upload-card {
-            padding: 30px;
-            border: 1px solid var(--line);
-            border-radius: 30px;
-            background: #1f2a24;
-            color: #fff8ed;
-            box-shadow: var(--shadow);
-        }
-
-        .upload-card h2 {
-            margin: 0 0 12px;
-            font-size: 28px;
-        }
-
-        .upload-card p {
-            margin: 0 0 24px;
-            color: rgba(255, 248, 237, 0.72);
-            line-height: 1.7;
-        }
-
-        label {
-            display: block;
-            margin: 18px 0 8px;
-            color: rgba(255, 248, 237, 0.78);
-            font-size: 14px;
-        }
-
-        input {
-            width: 100%;
-            padding: 14px 15px;
-            border: 1px solid rgba(255, 248, 237, 0.2);
-            border-radius: 16px;
-            color: #fff8ed;
-            background: rgba(255, 255, 255, 0.08);
-            font: inherit;
-        }
-
-        input::file-selector-button {
-            margin-right: 12px;
-            border: 0;
-            border-radius: 999px;
-            padding: 9px 13px;
-            color: #fff8ed;
-            background: var(--accent);
+        .hidden-input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
             cursor: pointer;
         }
 
-        button {
-            width: 100%;
-            margin-top: 22px;
-            padding: 15px 18px;
-            border: 0;
-            border-radius: 18px;
-            color: #fff8ed;
-            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-            font: inherit;
-            font-weight: 800;
-            cursor: pointer;
-            opacity: 1;
-            transition: transform 160ms ease, opacity 160ms ease, box-shadow 160ms ease;
+        /* Upload Controls */
+        .upload-controls {
+            margin-top: 1.8rem;
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        button:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 14px 30px rgba(159, 67, 34, 0.28);
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
-        button:disabled {
-            cursor: not-allowed;
-            opacity: 0.52;
-        }
-
-        code {
-            padding: 2px 6px;
-            border-radius: 8px;
-            color: #fff8ed;
-            background: rgba(31, 42, 36, 0.22);
-        }
-
-        .hint {
-            margin-top: 14px;
-            color: rgba(255, 248, 237, 0.56);
-            font-size: 13px;
-            line-height: 1.7;
-        }
-
-        .flow {
-            padding: 30px;
-            border: 1px solid var(--line);
-            border-radius: 30px;
-            background: var(--card);
-            box-shadow: var(--shadow);
-        }
-
-        .button-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .secondary-button {
-            color: #1f2a24;
-            background: rgba(255, 248, 237, 0.86);
-        }
-
-        .secondary-button:hover:not(:disabled) {
-            box-shadow: 0 14px 30px rgba(255, 248, 237, 0.18);
-        }
-
-        .selected-file {
-            margin-top: 10px;
-            color: rgba(255, 248, 237, 0.7);
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        .message {
-            min-height: 24px;
-            margin-top: 16px;
-            color: rgba(255, 248, 237, 0.78);
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .message[data-state="ok"] {
-            color: #a7f3d0;
-        }
-
-        .message[data-state="error"] {
-            color: #fecaca;
-        }
-
-        .file-toolbar {
+        .file-info {
             display: flex;
-            justify-content: space-between;
-            gap: 14px;
             align-items: center;
-            margin-bottom: 18px;
+            gap: 1rem;
+            padding: 1rem 1.2rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
         }
 
-        .file-count {
-            color: var(--muted);
-            font-size: 14px;
-        }
-
-        .refresh-button {
-            width: auto;
-            min-width: 112px;
-            margin-top: 0;
-            padding: 11px 14px;
-            color: #fff8ed;
-            border-radius: 999px;
-        }
-
-        .file-list {
-            display: grid;
-            gap: 12px;
-        }
-
-        .empty-state,
-        .file-item {
-            border: 1px solid var(--line);
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.42);
-        }
-
-        .empty-state {
-            padding: 24px;
-            color: var(--muted);
-            line-height: 1.7;
-        }
-
-        .file-item {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 16px;
+        .file-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            background: var(--accent-gradient);
+            display: flex;
             align-items: center;
-            padding: 16px;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .file-details {
+            min-width: 0;
+            flex: 1;
         }
 
         .file-name {
-            overflow-wrap: anywhere;
-            font-weight: 800;
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .file-meta {
-            margin-top: 5px;
-            color: var(--muted);
-            font-size: 13px;
+        .file-size {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.2rem;
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        .download-link {
-            display: inline-flex;
+        /* Buttons */
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn {
+            padding: 0.7rem 1.4rem;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            pointer-events: none;
+            transform: none;
+        }
+
+        .btn-primary {
+            background: var(--accent-gradient);
+            border: none;
+            color: #fff;
+            box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.5);
+        }
+
+        .btn-danger {
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--error);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: var(--error);
+        }
+
+        /* Progress */
+        .progress-container {
+            margin-top: 1.2rem;
+            padding: 1.2rem;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+            animation: slideUp 0.3s ease;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-bottom: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-secondary);
+        }
+
+        .progress-bar-bg {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 1.2rem;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent-gradient);
+            width: 0%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+        }
+
+        .chunk-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-top: 1rem;
+        }
+
+        .chunk {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.06);
+            transition: all 0.3s ease;
+        }
+
+        .chunk.uploaded {
+            background: var(--success);
+            box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
+        }
+
+        .chunk.uploading {
+            background: var(--accent-start);
+            animation: chunkPulse 1.2s ease infinite;
+            box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
+        }
+
+        .chunk.error {
+            background: var(--error);
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+        }
+
+        @keyframes chunkPulse {
+            0%, 100% { opacity: 0.5; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.1); }
+        }
+
+        .status-message {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+            padding: 0.6rem 0.8rem;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .status-message:empty {
+            display: none;
+        }
+
+        .status-message.error {
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.15);
+        }
+
+        .status-message.success {
+            color: var(--success);
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.15);
+        }
+
+        /* File List (Vault) */
+        .vault-card .card-header {
+            margin-bottom: 1rem;
+        }
+
+        .btn-refresh {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 82px;
-            padding: 10px 13px;
-            border-radius: 999px;
-            color: #fff8ed;
-            background: var(--green);
-            font-size: 14px;
-            font-weight: 800;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-refresh:hover {
+            border-color: var(--accent-start);
+            color: var(--accent-start);
+            transform: rotate(180deg);
+        }
+
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0.8rem;
+            border-radius: var(--radius-sm);
+            transition: all 0.25s ease;
+            border: 1px solid transparent;
+            margin-bottom: 0.4rem;
+        }
+
+        .file-item:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-color);
+            transform: translateX(4px);
+        }
+
+        .file-item-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .file-item-name {
+            font-weight: 500;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-item-size {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .file-item-action {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--accent-start);
             text-decoration: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            transition: all 0.25s ease;
+            white-space: nowrap;
         }
 
-        .steps {
-            display: grid;
-            gap: 14px;
-            margin-top: 18px;
+        .file-item-action:hover {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: var(--accent-start);
         }
 
-        .step {
-            display: grid;
-            grid-template-columns: 44px 1fr;
-            gap: 14px;
-            align-items: start;
-            padding: 16px;
-            border: 1px solid var(--line);
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.38);
-        }
-
-        .num {
-            display: grid;
-            place-items: center;
-            width: 44px;
-            height: 44px;
-            border-radius: 16px;
-            color: #fff8ed;
-            background: var(--green);
-            font-weight: 900;
-        }
-
-        .step strong {
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .step span {
-            color: var(--muted);
-            line-height: 1.6;
-        }
-
-        footer {
-            margin-top: 24px;
-            color: var(--muted);
+        .empty-state {
+            color: var(--text-muted);
+            font-size: 0.85rem;
             text-align: center;
-            font-size: 13px;
+            padding: 3rem 1rem;
         }
 
-        @media (max-width: 820px) {
-            .grain {
-                padding: 28px 14px;
-            }
+        .empty-state-icon {
+            font-size: 2rem;
+            margin-bottom: 0.8rem;
+            opacity: 0.5;
+        }
 
-            header,
-            main {
-                grid-template-columns: 1fr;
-            }
+        /* Footer */
+        .footer {
+            margin-top: 4rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
 
-            .hero {
-                padding: 30px;
-            }
+        .footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
 
-            .button-row,
-            .file-item {
-                grid-template-columns: 1fr;
-            }
+        .footer a:hover {
+            color: var(--accent-start);
+        }
 
-            .download-link,
-            .refresh-button {
+        /* Responsive */
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+            .token-input-wrap input {
                 width: 100%;
             }
+            .card {
+                padding: 1.5rem;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
 <body>
-    <div class="grain">
-        <div class="shell">
-            <header>
-                <section class="hero">
-                    <div class="eyebrow">PRIVATE PHOTO TRANSFER</div>
-                    <h1>PhotoBridge</h1>
-                    <p>把“拍完照片再隔空投送”的流程，变成一个更稳定的家庭照片中转站。第一版只追求真实跑通：上传原图，另一台设备下载原图。</p>
-                </section>
+    <div class="bg-grid"></div>
+    <div class="bg-glow"></div>
+    <div class="bg-glow-2"></div>
 
-                <aside class="panel">
-                    <h2>v0.1 状态</h2>
-                    <div class="status">
-                        <div class="status-item">
-                            <span>HTTP 服务</span>
-                            <strong class="badge">已启动</strong>
-                        </div>
-                        <div class="status-item">
-                            <span>/health</span>
-                            <strong class="badge">OK</strong>
-                        </div>
-                        <div class="status-item">
-                            <span>上传接口</span>
-                            <strong class="badge">已接入</strong>
-                        </div>
-                        <div class="status-item">
-                            <span>网页表单</span>
-                            <strong class="badge">测试中</strong>
+    <div class="app">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">⬡</div>
+                <span class="logo-text">PhotoBridge</span>
+            </div>
+            <div class="token-input-wrap">
+                <input type="password" id="token" placeholder="Access Token" autocomplete="current-password">
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <section class="card upload-card">
+                <div class="card-header">
+                    <span class="card-title">Upload</span>
+                    <span class="card-badge">Chunk Transfer</span>
+                </div>
+
+                <div class="drop-area" id="drop-area">
+                    <div class="drop-icon">↑</div>
+                    <div class="drop-text">Drop file here or click to browse</div>
+                    <div class="drop-hint">Supports resume after page refresh</div>
+                    <input type="file" id="file-input" class="hidden-input">
+                </div>
+
+                <div class="upload-controls" id="upload-controls" style="display: none;">
+                    <div class="file-info">
+                        <div class="file-icon">📄</div>
+                        <div class="file-details">
+                            <div class="file-name" id="file-name">filename.jpg</div>
+                            <div class="file-size" id="file-size">4.2 MB</div>
                         </div>
                     </div>
-                </aside>
-            </header>
 
-            <main>
-                <section class="upload-card">
-                    <h2>上传原图</h2>
-                    <p>选择一张照片或文件，浏览器会用 <code>multipart/form-data</code> 调用 <code>/api/upload-form</code>。这里不手动设置 Content-Type，让浏览器自动生成 boundary。</p>
-
-                    <form id="upload-form">
-                        <label for="token">访问 token</label>
-                        <input id="token" name="token" type="password" autocomplete="current-password" placeholder="输入你的访问 token">
-
-                        <label for="photo">选择照片或文件</label>
-                        <input id="photo" name="file" type="file" accept="image/*">
-                        <div id="selected-file" class="selected-file">尚未选择文件。</div>
-
-                        <div class="button-row">
-                            <button id="upload-button" type="submit">上传到 PhotoBridge</button>
-                            <button id="clear-button" class="secondary-button" type="button">清空选择</button>
-                        </div>
-                    </form>
-
-                    <div id="upload-message" class="message" role="status" aria-live="polite"></div>
-                    <div class="hint">第一版一次上传一个文件，确认稳定后再扩展多选、进度条和重复文件名处理。</div>
-                </section>
-
-                <section class="flow">
-                    <div class="file-toolbar">
-                        <div>
-                            <h2>文件中转站</h2>
-                            <div id="file-count" class="file-count">输入 token 后刷新列表。</div>
-                        </div>
-                        <button id="refresh-button" class="refresh-button" type="button">刷新列表</button>
+                    <div class="action-buttons">
+                        <button id="btn-start" class="btn btn-primary">Start Upload</button>
+                        <button id="btn-pause" class="btn" style="display: none;">Pause</button>
+                        <button id="btn-resume" class="btn btn-primary" style="display: none;">Resume</button>
+                        <button id="btn-cancel" class="btn btn-danger" style="display: none;">Cancel</button>
                     </div>
 
-                    <div id="file-list" class="file-list">
-                        <div class="empty-state">列表还没有加载。输入 token 后点击“刷新列表”，就能看到服务器上的文件。</div>
+                    <div class="progress-container" id="progress-container" style="display: none;">
+                        <div class="progress-stats">
+                            <span id="progress-text">0%</span>
+                            <span id="speed-text">0 KB/s</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="progress-fill"></div>
+                        </div>
+                        <div class="chunk-grid" id="chunk-grid"></div>
                     </div>
-                </section>
-            </main>
+                    <div id="status-message" class="status-message"></div>
+                </div>
+            </section>
 
-            <footer>PhotoBridge v0.1 · 先跑通，再工程化。</footer>
+            <section class="card vault-card">
+                <div class="card-header">
+                    <span class="card-title">Vault</span>
+                    <button id="btn-refresh" class="btn-refresh" title="Refresh file list">↻</button>
+                </div>
+
+                <div class="file-list" id="file-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📂</div>
+                        Enter token and refresh to view files.
+                    </div>
+                </div>
+            </section>
         </div>
+
+        <footer class="footer">
+            <span>PhotoBridge v2.3</span>
+            <span>Chunked Upload Protocol</span>
+        </footer>
     </div>
+
     <script>
-        const tokenInput = document.querySelector("#token");
-        const fileInput = document.querySelector("#photo");
-        const selectedFile = document.querySelector("#selected-file");
-        const uploadForm = document.querySelector("#upload-form");
-        const uploadButton = document.querySelector("#upload-button");
-        const clearButton = document.querySelector("#clear-button");
-        const refreshButton = document.querySelector("#refresh-button");
-        const uploadMessage = document.querySelector("#upload-message");
-        const fileList = document.querySelector("#file-list");
-        const fileCount = document.querySelector("#file-count");
+        const CHUNK_SIZE = 2 * 1024 * 1024;
+
+        let currentFile = null;
+        let uploadSession = null;
+        let abortController = null;
+        let isPaused = false;
+        let uploadedBytes = 0;
+
+        let speedInterval = null;
+        let lastBytes = 0;
+
+        const UI = {
+            token: document.getElementById('token'),
+            dropArea: document.getElementById('drop-area'),
+            fileInput: document.getElementById('file-input'),
+            uploadControls: document.getElementById('upload-controls'),
+            fileName: document.getElementById('file-name'),
+            fileSize: document.getElementById('file-size'),
+            btnStart: document.getElementById('btn-start'),
+            btnPause: document.getElementById('btn-pause'),
+            btnResume: document.getElementById('btn-resume'),
+            btnCancel: document.getElementById('btn-cancel'),
+            progressContainer: document.getElementById('progress-container'),
+            progressText: document.getElementById('progress-text'),
+            speedText: document.getElementById('speed-text'),
+            progressFill: document.getElementById('progress-fill'),
+            chunkGrid: document.getElementById('chunk-grid'),
+            fileList: document.getElementById('file-list'),
+            btnRefresh: document.getElementById('btn-refresh'),
+            statusMessage: document.getElementById('status-message')
+        };
 
         const savedToken = localStorage.getItem("photobridge-token");
-        if (savedToken) {
-            tokenInput.value = savedToken;
-        }
+        if (savedToken) UI.token.value = savedToken;
+        UI.token.addEventListener("input", () => {
+            localStorage.setItem("photobridge-token", UI.token.value.trim());
+        });
 
-        function getToken() {
-            return tokenInput.value.trim();
-        }
+        function getToken() { return UI.token.value.trim(); }
 
-        function apiUrl(path) {
-            const url = new URL(path, window.location.origin);
-            url.searchParams.set("token", getToken());
-            return url.toString();
-        }
-
-        function setMessage(text, state = "") {
-            uploadMessage.textContent = text;
-            uploadMessage.dataset.state = state;
+        async function requestJson(url, options = {}) {
+            options.cache = 'no-store';
+            const res = await fetch(url, options);
+            const contentType = res.headers.get('content-type') || '';
+            if (!res.ok) {
+                if (contentType.includes('application/json')) {
+                    const body = await res.json();
+                    throw new Error(body.error || body.message || `HTTP ${res.status}`);
+                }
+                const text = await res.text();
+                throw new Error(text || `HTTP ${res.status}`);
+            }
+            if (contentType.includes('application/json')) {
+                return await res.json();
+            }
+            const text = await res.text();
+            try { return JSON.parse(text); } catch { throw new Error(text || 'Unexpected response'); }
         }
 
         function formatBytes(bytes) {
-            if (bytes < 1024) {
-                return `${bytes} B`;
-            }
-            if (bytes < 1024 * 1024) {
-                return `${(bytes / 1024).toFixed(1)} KB`;
-            }
-            return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
-        function renderEmpty(text) {
-            fileList.innerHTML = "";
-            const empty = document.createElement("div");
-            empty.className = "empty-state";
-            empty.textContent = text;
-            fileList.appendChild(empty);
+        // localStorage session persistence
+        const SESSION_STORAGE_KEY = 'photobridge-upload-session';
+
+        function saveSession(file, sessionId) {
+            try {
+                const entry = {
+                    filename: file.name,
+                    size: file.size,
+                    lastModified: file.lastModified,
+                    chunkSize: CHUNK_SIZE,
+                    sessionId: sessionId
+                };
+                localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(entry));
+            } catch (e) { /* quota exceeded or private mode */ }
         }
 
-        function renderFiles(files) {
-            fileList.innerHTML = "";
+        function loadSession(file) {
+            try {
+                const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+                if (!raw) return null;
+                const entry = JSON.parse(raw);
+                if (entry.filename === file.name &&
+                    entry.size === file.size &&
+                    entry.lastModified === file.lastModified &&
+                    entry.chunkSize === CHUNK_SIZE) {
+                    return entry;
+                }
+            } catch (e) { /* corrupted */ }
+            return null;
+        }
 
-            if (!files.length) {
-                fileCount.textContent = "当前没有文件。";
-                renderEmpty("服务器上还没有文件。先上传一张照片试试。");
+        function clearSession(file) {
+            try {
+                const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+                if (!raw) return;
+                const entry = JSON.parse(raw);
+                if (file && entry.filename === file.name && entry.size === file.size) {
+                    localStorage.removeItem(SESSION_STORAGE_KEY);
+                }
+            } catch (e) {
+                localStorage.removeItem(SESSION_STORAGE_KEY);
+            }
+        }
+
+        // File Selection
+        UI.fileInput.addEventListener('change', handleFileSelect);
+        UI.dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            UI.dropArea.classList.add('dragover');
+        });
+        UI.dropArea.addEventListener('dragleave', () => {
+            UI.dropArea.classList.remove('dragover');
+        });
+        UI.dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            UI.dropArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                UI.fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+
+        function handleFileSelect() {
+            const file = UI.fileInput.files[0];
+            if (!file) return;
+
+            currentFile = file;
+            uploadSession = null;
+            isPaused = false;
+
+            UI.fileName.textContent = file.name;
+            UI.fileSize.textContent = formatBytes(file.size);
+
+            UI.uploadControls.style.display = 'block';
+            UI.progressContainer.style.display = 'none';
+
+            UI.btnStart.style.display = 'inline-flex';
+            UI.btnStart.disabled = false;
+            UI.btnPause.style.display = 'none';
+            UI.btnResume.style.display = 'none';
+            UI.btnCancel.style.display = 'none';
+
+            const saved = loadSession(file);
+            if (saved) {
+                setStatus('Previous session found — press Start to resume.', 'success');
+            } else {
+                setStatus('');
+            }
+        }
+
+        function setStatus(msg, type = '') {
+            UI.statusMessage.textContent = msg;
+            UI.statusMessage.className = 'status-message' + (type ? ' ' + type : '');
+        }
+
+        // Action Buttons
+        UI.btnStart.addEventListener('click', startUpload);
+        UI.btnPause.addEventListener('click', pauseUpload);
+        UI.btnResume.addEventListener('click', resumeUpload);
+        UI.btnCancel.addEventListener('click', cancelUpload);
+        UI.btnRefresh.addEventListener('click', refreshFiles);
+
+        async function startUpload() {
+            if (!getToken()) {
+                setStatus('Authorization token required.', 'error');
                 return;
             }
+            if (!currentFile) return;
 
-            fileCount.textContent = `共 ${files.length} 个文件`;
+            UI.btnStart.style.display = 'none';
+            UI.btnPause.style.display = 'inline-flex';
+            UI.btnCancel.style.display = 'inline-flex';
+            UI.progressContainer.style.display = 'block';
+            setStatus('Initializing session...');
 
-            for (const file of files) {
-                const item = document.createElement("article");
-                item.className = "file-item";
+            try {
+                const saved = loadSession(currentFile);
+                if (saved) {
+                    setStatus('Found previous session, checking status...');
+                    try {
+                        const statusParams = new URLSearchParams({
+                            token: getToken(),
+                            session_id: saved.sessionId
+                        });
+                        const statusData = await requestJson(`/api/uploads/status?${statusParams.toString()}`);
+                        if (statusData.result === 'success') {
+                            uploadSession = {
+                                id: saved.sessionId,
+                                totalChunks: statusData.chunk_count,
+                                uploadedIndexes: new Set(statusData.uploaded_indexes),
+                                missingIndexes: statusData.missing_indexes
+                            };
+                            initChunkGrid();
+                            for (let i = 0; i < uploadSession.totalChunks; i++) {
+                                if (uploadSession.uploadedIndexes.has(i)) {
+                                    updateChunkUI(i, 'uploaded');
+                                }
+                            }
+                            updateProgressUI();
+                            isPaused = false;
+                            startSpeedTracker();
+                            setStatus(`Resuming (${uploadSession.uploadedIndexes.size}/${uploadSession.totalChunks} chunks done)...`);
+                            await uploadLoop();
+                            return;
+                        }
+                    } catch (e) {
+                        clearSession(currentFile);
+                    }
+                }
 
-                const info = document.createElement("div");
-                const name = document.createElement("div");
-                name.className = "file-name";
-                name.textContent = file.name;
+                const params = new URLSearchParams({
+                    token: getToken(),
+                    filename: currentFile.name,
+                    size: currentFile.size,
+                    chunk_size: CHUNK_SIZE
+                });
 
-                const meta = document.createElement("div");
-                meta.className = "file-meta";
-                meta.textContent = formatBytes(file.size ?? 0);
+                const data = await requestJson(`/api/uploads/init?${params.toString()}`, { method: 'POST' });
 
-                info.append(name, meta);
+                if (data.result !== 'success') {
+                    throw new Error(data.error || 'Initialization failed');
+                }
 
-                const link = document.createElement("a");
-                link.className = "download-link";
-                link.href = apiUrl(`/api/files/${encodeURIComponent(file.name)}/download`);
-                link.textContent = "下载";
+                uploadSession = {
+                    id: data.session_id,
+                    totalChunks: data.chunk_count,
+                    uploadedIndexes: new Set(),
+                    missingIndexes: Array.from({length: data.chunk_count}, (_, i) => i)
+                };
 
-                item.append(info, link);
-                fileList.appendChild(item);
+                saveSession(currentFile, uploadSession.id);
+                initChunkGrid();
+                isPaused = false;
+                startSpeedTracker();
+                await uploadLoop();
+
+            } catch (err) {
+                setStatus(err.message, 'error');
+                UI.btnStart.style.display = 'inline-flex';
+                UI.btnPause.style.display = 'none';
             }
         }
 
+        function initChunkGrid() {
+            UI.chunkGrid.innerHTML = '';
+            for (let i = 0; i < uploadSession.totalChunks; i++) {
+                const chunkEl = document.createElement('div');
+                chunkEl.className = 'chunk';
+                chunkEl.id = `chunk-${i}`;
+                UI.chunkGrid.appendChild(chunkEl);
+            }
+            updateProgressUI();
+        }
+
+        function updateChunkUI(index, state) {
+            const el = document.getElementById(`chunk-${index}`);
+            if (el) el.className = `chunk ${state}`;
+        }
+
+        function updateProgressUI() {
+            if (!uploadSession) return;
+            const total = uploadSession.totalChunks;
+            const uploaded = uploadSession.uploadedIndexes.size;
+            const percent = total === 0 ? 100 : Math.round((uploaded / total) * 100);
+
+            UI.progressFill.style.width = `${percent}%`;
+            UI.progressText.textContent = `${percent}%`;
+
+            uploadedBytes = 0;
+            uploadSession.uploadedIndexes.forEach(idx => {
+                const isLast = idx === total - 1;
+                uploadedBytes += isLast ? (currentFile.size - (idx * CHUNK_SIZE)) : CHUNK_SIZE;
+            });
+        }
+
+        function startSpeedTracker() {
+            lastBytes = uploadedBytes;
+            if (speedInterval) clearInterval(speedInterval);
+            speedInterval = setInterval(() => {
+                if (isPaused) {
+                    UI.speedText.textContent = 'PAUSED';
+                    return;
+                }
+                const diff = uploadedBytes - lastBytes;
+                UI.speedText.textContent = `${formatBytes(diff)}/s`;
+                lastBytes = uploadedBytes;
+            }, 1000);
+        }
+
+        function stopSpeedTracker() {
+            if (speedInterval) clearInterval(speedInterval);
+            UI.speedText.textContent = '';
+        }
+
+        async function uploadLoop() {
+            setStatus('Uploading...');
+
+            while (uploadSession.missingIndexes.length > 0 && !isPaused) {
+                const index = uploadSession.missingIndexes.shift();
+                const start = index * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, currentFile.size);
+                const chunk = currentFile.slice(start, end);
+
+                updateChunkUI(index, 'uploading');
+
+                try {
+                    abortController = new AbortController();
+                    const params = new URLSearchParams({
+                        token: getToken(),
+                        session_id: uploadSession.id,
+                        index: index
+                    });
+
+                    const data = await requestJson(`/api/uploads/chunk?${params.toString()}`, {
+                        method: 'POST',
+                        body: chunk,
+                        signal: abortController.signal
+                    });
+
+                    if (data.result !== 'success') {
+                        throw new Error(data.error || 'Chunk upload failed');
+                    }
+
+                    uploadSession.uploadedIndexes.add(index);
+                    updateChunkUI(index, 'uploaded');
+                    updateProgressUI();
+
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        uploadSession.missingIndexes.unshift(index);
+                        updateChunkUI(index, '');
+                        break;
+                    }
+
+                    console.error('Chunk error:', err);
+                    uploadSession.missingIndexes.push(index);
+                    updateChunkUI(index, 'error');
+
+                    isPaused = true;
+                    setStatus('Error during upload. Paused.', 'error');
+                    UI.btnPause.style.display = 'none';
+                    UI.btnResume.style.display = 'inline-flex';
+                    break;
+                }
+            }
+
+            if (uploadSession && uploadSession.missingIndexes.length === 0 && !isPaused) {
+                await completeUpload();
+            }
+        }
+
+        async function completeUpload() {
+            setStatus('Merging file...');
+            try {
+                const params = new URLSearchParams({
+                    token: getToken(),
+                    session_id: uploadSession.id
+                });
+                const data = await requestJson(`/api/uploads/complete?${params.toString()}`, { method: 'POST' });
+
+                if (data.result === 'success') {
+                    setStatus('Transfer complete — select a new file to continue.', 'success');
+                    UI.btnPause.style.display = 'none';
+                    UI.btnCancel.style.display = 'none';
+                    UI.btnResume.style.display = 'none';
+                    stopSpeedTracker();
+                    clearSession(currentFile);
+                    uploadSession = null;
+                    currentFile = null;
+                    UI.fileInput.value = '';
+                    UI.btnStart.disabled = true;
+                    refreshFiles();
+                } else {
+                    throw new Error(data.error || 'Merge failed');
+                }
+            } catch (err) {
+                setStatus(err.message, 'error');
+                UI.btnPause.style.display = 'none';
+                UI.btnResume.style.display = 'inline-flex';
+            }
+        }
+
+        function pauseUpload() {
+            isPaused = true;
+            if (abortController) abortController.abort();
+            UI.btnPause.style.display = 'none';
+            UI.btnResume.style.display = 'inline-flex';
+            setStatus('Paused');
+        }
+
+        async function resumeUpload() {
+            if (!getToken()) return;
+            UI.btnResume.style.display = 'none';
+            UI.btnPause.style.display = 'inline-flex';
+            setStatus('Resuming...');
+
+            try {
+                const params = new URLSearchParams({
+                    token: getToken(),
+                    session_id: uploadSession.id
+                });
+                const data = await requestJson(`/api/uploads/status?${params.toString()}`);
+
+                if (data.result === 'success') {
+                    uploadSession.uploadedIndexes = new Set(data.uploaded_indexes);
+                    uploadSession.missingIndexes = data.missing_indexes;
+
+                    for (let i = 0; i < uploadSession.totalChunks; i++) {
+                        if (uploadSession.uploadedIndexes.has(i)) {
+                            updateChunkUI(i, 'uploaded');
+                        } else {
+                            updateChunkUI(i, '');
+                        }
+                    }
+                    updateProgressUI();
+
+                    isPaused = false;
+                    await uploadLoop();
+                } else {
+                    throw new Error(data.error || 'Failed to get status');
+                }
+            } catch (err) {
+                setStatus(err.message, 'error');
+                UI.btnResume.style.display = 'inline-flex';
+                UI.btnPause.style.display = 'none';
+            }
+        }
+
+        async function cancelUpload() {
+            isPaused = true;
+            if (abortController) abortController.abort();
+            stopSpeedTracker();
+
+            if (uploadSession) {
+                try {
+                    const params = new URLSearchParams({
+                        token: getToken(),
+                        session_id: uploadSession.id
+                    });
+                    const data = await requestJson(`/api/uploads/abort?${params.toString()}`, { method: 'POST' });
+                    if (data.result !== 'success') {
+                        setStatus('Cancel request failed on server. You may retry.', 'error');
+                        UI.btnResume.style.display = 'inline-flex';
+                        UI.btnCancel.style.display = 'inline-flex';
+                        UI.btnPause.style.display = 'none';
+                        return;
+                    }
+                } catch (e) {
+                    setStatus(`Cancel failed: ${e.message}`, 'error');
+                    UI.btnResume.style.display = 'inline-flex';
+                    UI.btnCancel.style.display = 'inline-flex';
+                    UI.btnPause.style.display = 'none';
+                    return;
+                }
+                clearSession(currentFile);
+            }
+
+            uploadSession = null;
+            currentFile = null;
+            UI.fileInput.value = '';
+            UI.uploadControls.style.display = 'none';
+            setStatus('');
+        }
+
+        // File List
         async function refreshFiles() {
             if (!getToken()) {
-                fileCount.textContent = "缺少 token";
-                renderEmpty("请先输入访问 token，再刷新文件列表。");
+                UI.fileList.replaceChildren();
+                const msg = document.createElement('div');
+                msg.className = 'empty-state';
+                msg.textContent = 'Authorization token required.';
+                UI.fileList.appendChild(msg);
                 return;
             }
 
-            refreshButton.disabled = true;
-            fileCount.textContent = "正在读取服务器文件...";
+            UI.btnRefresh.style.opacity = '0.4';
 
             try {
-                const response = await fetch(apiUrl("/api/files"));
-                const text = await response.text();
+                const params = new URLSearchParams({ token: getToken(), _t: Date.now() });
+                const files = await requestJson(`/api/files?${params.toString()}`);
 
-                if (!response.ok) {
-                    throw new Error(text || `请求失败：${response.status}`);
+                UI.fileList.replaceChildren();
+                if (files.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.className = 'empty-state';
+                    empty.innerHTML = '<div class="empty-state-icon">📂</div>The vault is empty.';
+                    UI.fileList.appendChild(empty);
+                    return;
                 }
 
-                renderFiles(JSON.parse(text));
-            } catch (error) {
-                fileCount.textContent = "读取失败";
-                renderEmpty(error.message || "文件列表读取失败，请检查 token 或服务器状态。");
+                files.forEach(file => {
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+
+                    const info = document.createElement('div');
+                    info.className = 'file-item-info';
+
+                    const nameEl = document.createElement('span');
+                    nameEl.className = 'file-item-name';
+                    nameEl.textContent = file.name;
+
+                    const sizeEl = document.createElement('span');
+                    sizeEl.className = 'file-item-size';
+                    sizeEl.textContent = formatBytes(file.size);
+
+                    info.appendChild(nameEl);
+                    info.appendChild(sizeEl);
+
+                    const link = document.createElement('a');
+                    link.className = 'file-item-action';
+                    link.href = `/api/files/${encodeURIComponent(file.name)}/download?${params.toString()}`;
+                    link.download = '';
+                    link.textContent = 'Download';
+
+                    item.appendChild(info);
+                    item.appendChild(link);
+                    UI.fileList.appendChild(item);
+                });
+
+            } catch (err) {
+                UI.fileList.replaceChildren();
+                const errMsg = document.createElement('div');
+                errMsg.className = 'empty-state';
+                errMsg.style.color = 'var(--error)';
+                errMsg.textContent = err.message;
+                UI.fileList.appendChild(errMsg);
             } finally {
-                refreshButton.disabled = false;
+                UI.btnRefresh.style.opacity = '1';
             }
         }
-
-        fileInput.addEventListener("change", () => {
-            const file = fileInput.files[0];
-            selectedFile.textContent = file
-                ? `${file.name} · ${formatBytes(file.size)}`
-                : "尚未选择文件。";
-        });
-
-        tokenInput.addEventListener("input", () => {
-            localStorage.setItem("photobridge-token", getToken());
-        });
-
-        clearButton.addEventListener("click", () => {
-            fileInput.value = "";
-            selectedFile.textContent = "尚未选择文件。";
-            setMessage("");
-        });
-
-        refreshButton.addEventListener("click", refreshFiles);
-
-        uploadForm.addEventListener("submit", async (event) => {
-            event.preventDefault();
-
-            if (!getToken()) {
-                setMessage("请先输入访问 token。", "error");
-                return;
-            }
-
-            const file = fileInput.files[0];
-            if (!file) {
-                setMessage("请先选择一个要上传的文件。", "error");
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append("file", file);
-
-            uploadButton.disabled = true;
-            setMessage(`正在上传 ${file.name} ...`);
-
-            try {
-                const response = await fetch(apiUrl("/api/upload-form"), {
-                    method: "POST",
-                    body: formData
-                });
-                const text = await response.text();
-
-                if (!response.ok) {
-                    throw new Error(text || `上传失败：${response.status}`);
-                }
-
-                setMessage("上传成功，正在刷新文件列表。", "ok");
-                fileInput.value = "";
-                selectedFile.textContent = "尚未选择文件。";
-                await refreshFiles();
-            } catch (error) {
-                setMessage(error.message || "上传失败，请检查 token 或服务器状态。", "error");
-            } finally {
-                uploadButton.disabled = false;
-            }
-        });
 
         if (getToken()) {
             refreshFiles();

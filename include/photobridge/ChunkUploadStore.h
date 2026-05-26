@@ -32,6 +32,8 @@ namespace photobridge {
         InvalidIndex,
         EmptyChunk,
         SaveFailed,
+        InvalidSize,
+        Conflict,
     };
     enum class CompleteUploadResult {
         Success,
@@ -56,6 +58,17 @@ namespace photobridge {
         std::vector<std::uintmax_t> uploaded_indexes;
         std::vector<std::uintmax_t> missing_indexes;
     };
+    enum class AbortUploadResult{
+        Success,
+        InvalidSession,
+        NotFound,
+        AbortFailed,
+    };
+    struct CleanupExpiredUploadsResponse{
+        std::uintmax_t removed_count = 0;
+        std::uintmax_t failed_count = 0;
+    };
+
     class ChunkUploadStore{
         public:
         explicit ChunkUploadStore(
@@ -79,10 +92,13 @@ namespace photobridge {
             const std::string& session_id
         ) const;
         bool cleanupSession(const std::string& session_id) const;
+        CleanupExpiredUploadsResponse cleanupExpiredUploads(std::uintmax_t max_age_seconds) const;
+        AbortUploadResult abortUpload(const std::string& session_id) const;
         private:
         std::filesystem::path temp_dir_;
         std::filesystem::path upload_dir_;
         bool isSafeFilename(const std::string& filename) const;
+        bool isSafeSessionId(const std::string& session_id) const;
         std::string generateSessionId() const;
         
     };

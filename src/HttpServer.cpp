@@ -14,6 +14,25 @@
 
 
 namespace{
+    class ScopedTimer {
+        public:
+            explicit ScopedTimer(std::string name)
+                : name_(std::move(name)),
+                  start_(std::chrono::steady_clock::now()) {}
+        
+            ~ScopedTimer() {
+                const auto end = std::chrono::steady_clock::now();
+                const auto elapsed_ms =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(end - start_).count();
+        
+                std::cout << "[perf] " << name_ << " elapsed_ms=" << elapsed_ms << "\n";
+            }
+        
+        private:
+            std::string name_;
+            std::chrono::steady_clock::time_point start_;
+        };
+    
     std::string getTokenFromEnv(){
         const char* token = std::getenv("PHOTO_BRIDGE_TOKEN");
         return token ? token : "";
@@ -452,6 +471,7 @@ bool HttpServer::start(const char* host, int port)
         return;
     });
     server.Post("/api/uploads/init",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        ScopedTimer timer("uploads.init");
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
             res.set_content("Unauthorized", "text/plain");
@@ -517,6 +537,7 @@ bool HttpServer::start(const char* host, int port)
         }
     });
     server.Post("/api/uploads/chunk",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        ScopedTimer timer("uploads.chunk");
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
             res.set_content("Unauthorized", "text/plain");
@@ -570,9 +591,107 @@ bool HttpServer::start(const char* host, int port)
                 res.set_content(json.str(), "application/json");
                 return;
             }
+            case SaveChunkResult::InvalidSize: {
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Invalid chunk size\"}";
+                res.status = 400;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case SaveChunkResult::Conflict: {
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Chunk conflict\"}";
+                res.status = 409;
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            
         }
     });
+    server.Post("/api/uploads/abort",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto session_id = req.get_param_value("session_id");
+        const auto abort_result = chunk_upload_store.abortUpload(session_id);
+        switch(abort_result){
+            case AbortUploadResult::Success: {
+                res.status = 200;
+                std::ostringstream json;
+                json << "{\"result\":\"success\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case AbortUploadResult::InvalidSession: {
+                res.status = 400;
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Invalid session\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case AbortUploadResult::NotFound: {
+                res.status = 404;
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Session not found\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+            case AbortUploadResult::AbortFailed: {
+                res.status = 500;
+                std::ostringstream json;
+                json << "{\"result\":\"error\",\"error\":\"Failed to abort upload\"}";
+                res.set_content(json.str(), "application/json");
+                return;
+            }
+        }
+    });
+    server.Post("/api/uploads/cleanup-expired",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res) {
+            if (!isAuthorized(req, expected_token)) {
+                res.status = 401;
+                res.set_content("Unauthorized", "text/plain");
+                return;
+            }
+    
+            const auto max_age_text = req.get_param_value("max_age_seconds");
+            std::uintmax_t max_age_seconds = 0;
+    
+            try {
+                max_age_seconds = static_cast<std::uintmax_t>(std::stoull(max_age_text));
+            } catch (...) {
+                res.status = 400;
+                res.set_content(
+                    "{\"result\":\"error\",\"error\":\"Invalid max_age_seconds\"}",
+                    "application/json"
+                );
+                return;
+            }
+    
+            if (max_age_seconds == 0) {
+                res.status = 400;
+                res.set_content(
+                    "{\"result\":\"error\",\"error\":\"Invalid max_age_seconds\"}",
+                    "application/json"
+                );
+                return;
+            }
+    
+            const auto result = chunk_upload_store.cleanupExpiredUploads(max_age_seconds);
+    
+            std::ostringstream json;
+            json << "{"
+                 << "\"result\":\"success\","
+                 << "\"removed_count\":" << result.removed_count << ","
+                 << "\"failed_count\":" << result.failed_count
+                 << "}";
+    
+            res.status = 200;
+            res.set_content(json.str(), "application/json");
+        }
+    );
     server.Post("/api/uploads/complete",[&chunk_upload_store, expected_token, &metadata_store](const httplib::Request& req, httplib::Response& res){
+        ScopedTimer timer("uploads.complete");
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
             res.set_content("Unauthorized", "text/plain");
@@ -640,6 +759,7 @@ bool HttpServer::start(const char* host, int port)
         }
     });
     server.Get("/api/uploads/status",[&chunk_upload_store, expected_token](const httplib::Request& req, httplib::Response& res){
+        ScopedTimer timer("uploads.status");
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
             res.set_content("Unauthorized", "text/plain");
