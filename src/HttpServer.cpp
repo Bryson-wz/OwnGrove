@@ -2,6 +2,7 @@
 #include "photobridge/MetadataStore.h"
 #include "photobridge/FileStore.h"
 #include "photobridge/ChunkUploadStore.h"
+#include "photobridge/LocalStorageBackend.h"
 
 #include "httplib.h"
 #include <iostream>
@@ -98,21 +99,17 @@ namespace photobridge {
 
 bool HttpServer::start(const char* host, int port)
 {
-    // 创建HTTP服务器实例
     httplib::Server server;
     const std::string expected_token = getTokenFromEnv();
-    // 创建文件存储实例
     FileStore file_store("data/uploads");
-
-    // 创建元数据存储实例
     MetadataStore metadata_store("data/metadata/files.jsonl");
-    // 创建分块上传存储实例
-    ChunkUploadStore chunk_upload_store("data/uploads_tmp", "data/uploads");
-    // 创建健康检查路由
+    LocalStorageBackend storage_backend("data");
+    ChunkUploadStore chunk_upload_store("data/uploads_tmp", "data/uploads", storage_backend);
+
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content("OK", "text/plain");
     });
-    // 创建主页路由
+
     server.Get("/", [](const httplib::Request&, httplib::Response& res) {
         std::ifstream index_file("web/index.html");
         if (!index_file.is_open()) {
@@ -125,7 +122,7 @@ bool HttpServer::start(const char* host, int port)
         index_buffer << index_file.rdbuf();
         res.set_content(index_buffer.str(), "text/html");
     });
-    // 创建文件列表路由
+
     server.Get("/api/files", [&file_store, &metadata_store, expected_token](const httplib::Request& req, httplib::Response& res) {
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;
@@ -152,7 +149,7 @@ bool HttpServer::start(const char* host, int port)
         json << "]";
         res.set_content(json.str(), "application/json");
     });
-    // 创建文件下载路由
+
     server.Get(R"(/api/files/(.+)/download)",[&file_store, expected_token](const httplib::Request& req, httplib::Response& res){
         if (!isAuthorized(req, expected_token)) {
             res.status = 401;

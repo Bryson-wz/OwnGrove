@@ -1,5 +1,7 @@
 #pragma once
 
+#include "photobridge/StorageBackend.h"
+
 #include <filesystem>
 #include <string>
 #include <cstdint>
@@ -73,7 +75,8 @@ namespace photobridge {
         public:
         explicit ChunkUploadStore(
             std::filesystem::path temp_dir,
-            std::filesystem::path upload_dir
+            std::filesystem::path upload_dir,
+            StorageBackend& storage_backend
         );
         InitSessionResponse initSession(
             const std::string& filename,
@@ -99,7 +102,10 @@ namespace photobridge {
         std::filesystem::path upload_dir_;
         bool isSafeFilename(const std::string& filename) const;
         bool isSafeSessionId(const std::string& session_id) const;
+        bool deleteUploadObjects(const std::string& session_id) const;
         std::string generateSessionId() const;
+
+        StorageBackend& storage_backend_;
         
     };
 }

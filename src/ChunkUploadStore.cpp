@@ -1,5 +1,7 @@
 #include "photobridge/ChunkUploadStore.h"
 #include "photobridge/Checksum.h"
+#include "photobridge/StorageBackend.h"
+#include "photobridge/LocalStorageBackend.h"
 
 #include <fstream>
 #include <chrono>
@@ -83,35 +85,37 @@ namespace{
         }
         return total_size - chunk_size * (chunk_count - 1);
     }
-
-    bool writeChunkMeta(
-        const std::filesystem::path& chunk_meta_file,
-        std::uintmax_t index,
-        std::uintmax_t size,
-        const std::string& checksum
-    ){
-        std::ofstream meta(chunk_meta_file, std::ios::binary);
-        if(!meta.is_open()){
-            return false;
-        }
+    std::string buildChunkMetaJson(std::uintmax_t index, std::uintmax_t size, const std::string& checksum){
+        std::ostringstream meta;
         meta << "{"
              << "\"index\":" << index << ","
              << "\"size\":" << size << ","
              << "\"checksum_algorithm\":\"crc32c\","
              << "\"checksum\":\"" << checksum << "\""
              << "}";
-        return meta.good();
+        return meta.str();
     }
-
-    
+    std::string chunkPartKey(const std::string& session_id,std::uintmax_t index){
+        return "uploads_tmp/upload_" + session_id + "/chunks/chunk_" + std::to_string(index) + ".part";
+    }
+    std::string chunkMetaKey(const std::string& session_id,std::uintmax_t index){
+        return "uploads_tmp/upload_" + session_id + "/chunks/chunk_" + std::to_string(index) + ".meta";
+    }
+    std::string sessionKey(const std::string& session_id){
+        return "uploads_tmp/upload_" + session_id + "/session.json";
+    }
+    std::string uploadPrefix(const std::string& session_id) {
+        return "uploads_tmp/upload_" + session_id + "/";
+    }
 }
 namespace photobridge {
-    ChunkUploadStore::ChunkUploadStore(std::filesystem::path temp_dir,std::filesystem::path upload_dir)
-    : temp_dir_(std::move(temp_dir))
-    , upload_dir_(std::move(upload_dir))
+    ChunkUploadStore::ChunkUploadStore(std::filesystem::path temp_dir,std::filesystem::path upload_dir,StorageBackend& storage_backend)
+        : temp_dir_(std::move(temp_dir))
+        , upload_dir_(std::move(upload_dir))
+        , storage_backend_(storage_backend)
     {
     }
-    InitSessionResponse ChunkUploadStore::initSession(const std::string& filename,std::uintmax_t total_size,std::uintmax_t chunk_size) const{
+    InitSessionResponse ChunkUploadStore::initSession(const std::string& filename,std::uintmax_t total_size,std::uintmax_t chunk_size) const {
         if(!isSafeFilename(filename)){
             return InitSessionResponse{InitResult::InvalidFilename, ChunkUploadSession{}};
         }
@@ -121,22 +125,13 @@ namespace photobridge {
         const auto session_id = generateSessionId();
         const auto session_dir = temp_dir_ / ("upload_" + session_id);
         const auto chunks_dir = session_dir / "chunks";
-        const auto session_file = session_dir / "session.json";
         const auto chunk_count = (total_size + chunk_size - 1) / chunk_size;
-        if (std::filesystem::exists(session_dir)) {
+        if (storage_backend_.existsObject(sessionKey(session_id))) {
             return InitSessionResponse{InitResult::FileExists, ChunkUploadSession{}};
         }
         
-        std::error_code ec;
-        std::filesystem::create_directories(chunks_dir, ec);
-        if (ec) {
-            return InitSessionResponse{InitResult::InitFailed, ChunkUploadSession{}};
-        }
-        std::ofstream file(session_file);
-        if(!file.is_open()){
-            return InitSessionResponse{InitResult::InitFailed,ChunkUploadSession{}};
-        }
-        file << "{"
+        std::ostringstream session_json;
+        session_json << "{"
         << "\"filename\":\"" << escapeJson(filename) << "\","
         << "\"session_id\":\"" << escapeJson(session_id) << "\","
         << "\"total_size\":" << total_size << ","
@@ -144,10 +139,9 @@ namespace photobridge {
         << "\"chunk_count\":" << chunk_count << ","
         << "\"status\":\"pending\""
         << "}";
-        if(!file.good()){
+        if(!storage_backend_.writeObject(sessionKey(session_id), session_json.str())){
             return InitSessionResponse{InitResult::InitFailed,ChunkUploadSession{}};
         }
-        file.close();
         return InitSessionResponse{InitResult::Success, ChunkUploadSession{session_id, filename, total_size, chunk_size, chunk_count, "pending", chunks_dir}};
     }
     SaveChunkResult ChunkUploadStore::saveChunk(const std::string& session_id,std::uintmax_t index,const std::string& chunk) const{
@@ -158,22 +152,11 @@ namespace photobridge {
             return SaveChunkResult::EmptyChunk;
         }
 
-        const auto session_dir = temp_dir_ / ("upload_" + session_id);
-        const auto chunks_dir = session_dir / "chunks";
-        if(!std::filesystem::is_directory(session_dir)){
+        const auto session_result = storage_backend_.readObject(sessionKey(session_id));
+        if(!session_result.ok){
             return SaveChunkResult::InvalidSession;
         }
-        if(!std::filesystem::is_directory(chunks_dir)){
-            return SaveChunkResult::InvalidSession;
-        }
-        const auto session_file = session_dir / "session.json";
-        std::ifstream session_stream(session_file);
-        if(!session_stream.is_open()){
-            return SaveChunkResult::InvalidSession;
-        }
-        std::stringstream buffer;
-        buffer << session_stream.rdbuf();
-        const auto session_text = buffer.str();
+        const auto& session_text = session_result.data;
         const auto chunk_count = extractUintField(session_text, "chunk_count");
         const auto chunk_size = extractUintField(session_text, "chunk_size");
         const auto total_size = extractUintField(session_text, "total_size");
@@ -188,74 +171,68 @@ namespace photobridge {
         if(actual_size != expected_size){
             return SaveChunkResult::InvalidSize;
         }
-        const auto chunk_file = chunks_dir / ("chunk_" + std::to_string(index)+".part");
-        const auto chunk_meta_file = chunks_dir / ("chunk_" + std::to_string(index)+".meta");
+        const auto chunk_key = chunkPartKey(session_id, index);
+        const auto chunk_meta_key = chunkMetaKey(session_id, index);
         const auto checksum = crc32cHex(chunk);
-        if(std::filesystem::exists(chunk_file)){
-            const auto existing_size = std::filesystem::file_size(chunk_file);
-            if(existing_size != actual_size){
+        const auto meta_json = buildChunkMetaJson(index, actual_size, checksum);
+        if(storage_backend_.existsObject(chunk_key)){
+            const auto existing_size = storage_backend_.objectSize(chunk_key);
+            if(!existing_size.ok){
+                return SaveChunkResult::InvalidSession;
+            }
+            if(existing_size.size != actual_size){
                 return SaveChunkResult::Conflict;
             }
-            const auto existing_checksum = crc32cFileHex(chunk_file);
+            const auto existing_result = storage_backend_.readObject(chunk_key);
+            if(!existing_result.ok){
+                return SaveChunkResult::InvalidSession;
+            }
+            const auto existing_checksum = crc32cHex(existing_result.data);
             if(existing_checksum != checksum){
                 return SaveChunkResult::Conflict;
             }
-            if(std::filesystem::exists(chunk_meta_file)){
-                std::ifstream meta_stream(chunk_meta_file);
-                std::stringstream meta_buffer;
-                meta_buffer << meta_stream.rdbuf();
-                const auto meta_text = meta_buffer.str();
+            if(storage_backend_.existsObject(chunk_meta_key)){
+                const auto meta_result = storage_backend_.readObject(chunk_meta_key);
+                if (!meta_result.ok) {
+                    return SaveChunkResult::InvalidSession;
+                }
+                const auto& meta_text = meta_result.data;
                 const auto meta_size = extractUintField(meta_text, "size");
                 const auto checksum_algorithm = extractStringField(meta_text, "checksum_algorithm");
                 const auto checksum_expected = extractStringField(meta_text, "checksum");
-                const auto checksum_actual = crc32cFileHex(chunk_file);
-                if(meta_stream.is_open() &&
-                meta_size == actual_size &&
-                checksum_algorithm == "crc32c" &&
-                checksum_expected == checksum_actual &&
-                checksum_actual == checksum){
+                const auto checksum_actual = crc32cHex(existing_result.data);
+                if(meta_size == actual_size && checksum_algorithm == "crc32c" && checksum_expected == checksum_actual && checksum_actual == checksum){
                     return SaveChunkResult::Success;
                 }
             }
 
-            if(writeChunkMeta(chunk_meta_file, index, actual_size, checksum)){
-                return SaveChunkResult::Success;
+            if(!storage_backend_.writeObject(chunk_meta_key, meta_json)){
+                storage_backend_.deleteObject(chunk_key);
+                storage_backend_.deleteObject(chunk_meta_key);
+                return SaveChunkResult::SaveFailed;
             }
-            return SaveChunkResult::SaveFailed;
+            return SaveChunkResult::Success;
         }
-        std::ofstream file(chunk_file,std::ios::binary);
-        if(!file.is_open()){
+
+        if(!storage_backend_.writeObject(chunk_key, chunk)){
             return SaveChunkResult::SaveFailed;
         }
 
-        file.write(chunk.data(),static_cast<std::streamsize>(chunk.size()));
-        if(!file.good()){
-            std::filesystem::remove(chunk_file);
-            return SaveChunkResult::SaveFailed;
-        }
-        file.close();
 
-        if(!writeChunkMeta(chunk_meta_file, index, actual_size, checksum)){
-            std::filesystem::remove(chunk_file);
-            std::filesystem::remove(chunk_meta_file);
+        if(!storage_backend_.writeObject(chunk_meta_key, meta_json)){
+            storage_backend_.deleteObject(chunk_key);
+            storage_backend_.deleteObject(chunk_meta_key);
             return SaveChunkResult::SaveFailed;
         }
         return SaveChunkResult::Success;
     }
 
     CompleteUploadResponse ChunkUploadStore::completeUpload(const std::string& session_id) const{
-        const auto session_dir = temp_dir_ / ("upload_" + session_id);
-        const auto chunks_dir = session_dir / "chunks";
-        const auto session_file = session_dir / "session.json";
-
-        if(!std::filesystem::is_directory(chunks_dir)||
-           !std::filesystem::exists(session_file)){
+        const auto session_result = storage_backend_.readObject(sessionKey(session_id));
+        if(!session_result.ok){
             return {CompleteUploadResult::InvalidSession,"",0};
         }
-        std::ifstream session_stream(session_file);
-        std::stringstream buffer;
-        buffer << session_stream.rdbuf();
-        const auto session_text = buffer.str();
+        const auto& session_text = session_result.data;
         const auto filename = extractStringField(session_text, "filename");
         if(!isSafeFilename(filename)){
             return {CompleteUploadResult::InvalidSession,"",0};
@@ -273,51 +250,49 @@ namespace photobridge {
             return {CompleteUploadResult::SaveFailed,"",0};
         }
         for(std::uintmax_t i = 0; i < chunk_count; ++i){
-            const auto chunk_file = chunks_dir / ("chunk_" + std::to_string(i)+".part");
-            if(!std::filesystem::exists(chunk_file)){
+            const auto chunk_key = chunkPartKey(session_id, i);
+            const auto chunk_meta_key = chunkMetaKey(session_id, i);
+            if(!storage_backend_.existsObject(chunk_key)){
                 output_file.close();
                 std::filesystem::remove(output_path);
                 return {CompleteUploadResult::MissingChunk,filename,0};
             }
-            const auto chunk_meta_file = chunks_dir / ("chunk_" + std::to_string(i)+".meta");
-            if (!std::filesystem::exists(chunk_meta_file)) {
+            if (!storage_backend_.existsObject(chunk_meta_key)) {
                 output_file.close();
                 std::filesystem::remove(output_path);
                 return {CompleteUploadResult::MergeFailed, filename, 0};
             }
-            std::ifstream meta_stream(chunk_meta_file);
-            if (!meta_stream.is_open()) {
+            const auto meta_result = storage_backend_.readObject(chunk_meta_key);
+            if (!meta_result.ok) {
                 output_file.close();
                 std::filesystem::remove(output_path);
                 return {CompleteUploadResult::MergeFailed, filename, 0};
             }
-            std::stringstream meta_buffer;
-            meta_buffer << meta_stream.rdbuf();
-            const auto meta_text = meta_buffer.str();
+            const auto chunk_result = storage_backend_.readObject(chunk_key);
+            if(!chunk_result.ok){
+                output_file.close();
+                std::filesystem::remove(output_path);
+                return {CompleteUploadResult::MergeFailed, filename, 0};
+            }
+            const auto& meta_text = meta_result.data;
+            const auto& chunk_data = chunk_result.data;
             const auto checksum_algorithm = extractStringField(meta_text, "checksum_algorithm");
             const auto checksum_expected = extractStringField(meta_text, "checksum");
-            const auto checksum_actual = crc32cFileHex(chunk_file);
+            const auto checksum_actual = crc32cHex(chunk_data);
             const auto meta_size = extractUintField(meta_text, "size");
-            const auto actual_size = std::filesystem::file_size(chunk_file);
+            const auto actual_size = chunk_data.size();
             const auto expected_size = expectedChunkSize(i, chunk_count, chunk_size, total_size);
             if(meta_size != actual_size || actual_size != expected_size || checksum_algorithm != "crc32c" || checksum_actual != checksum_expected){
                 output_file.close();
                 std::filesystem::remove(output_path);
                 return {CompleteUploadResult::MergeFailed,filename,0};
             }
-            std::ifstream input_file(chunk_file,std::ios::binary);
-            if(!input_file.is_open()){
-                output_file.close();
-                std::filesystem::remove(output_path);
-                return {CompleteUploadResult::MergeFailed, filename, 0};
-            }
-            output_file<<input_file.rdbuf();    
+            output_file.write(chunk_data.data(), static_cast<std::streamsize>(chunk_data.size()));
             if(!output_file.good()){
                 output_file.close();
                 std::filesystem::remove(output_path);
                 return {CompleteUploadResult::MergeFailed,"",0};
             }
-            input_file.close();
         }
         output_file.close();
         return {CompleteUploadResult::Success,filename,std::filesystem::file_size(output_path)};
@@ -326,21 +301,14 @@ namespace photobridge {
         if(session_id.empty()){
             return UploadStatusResponse{UploadStatusResult::InvalidSession, ChunkUploadSession{}, {}, {}};
         }
-        const auto session_dir = temp_dir_/("upload_" + session_id);
-        const auto session_file = session_dir /"session.json";
-        const auto chunks_dir = session_dir / "chunks";
-        if(!std::filesystem::is_directory(session_dir) ||
-           !std::filesystem::is_directory(chunks_dir) ||
-           !std::filesystem::exists(session_file)){
+        if(!storage_backend_.existsObject(sessionKey(session_id))){
             return UploadStatusResponse{UploadStatusResult::InvalidSession, ChunkUploadSession{}, {}, {}};
         }
-        std::ifstream session_stream(session_file);
-        if(!session_stream.is_open()){
+        const auto session_result = storage_backend_.readObject(sessionKey(session_id));
+        if(!session_result.ok){
             return UploadStatusResponse{UploadStatusResult::InvalidSession, ChunkUploadSession{}, {}, {}};
         }
-        std::stringstream buffer;
-        buffer<<session_stream.rdbuf();
-        const auto session_text = buffer.str();
+        const auto& session_text = session_result.data;
 
         const auto filename = extractStringField(session_text, "filename");
         const auto parsed_session_id = extractStringField(session_text, "session_id");
@@ -354,29 +322,33 @@ namespace photobridge {
         std::vector<std::uintmax_t> uploaded_indexes;
         std::vector<std::uintmax_t> missing_indexes;
         for(std::uintmax_t i = 0; i < chunk_count; ++i){
-            const auto chunk_file = chunks_dir / ("chunk_" + std::to_string(i)+".part");
-            const auto chunk_meta_file = chunks_dir / ("chunk_" + std::to_string(i)+".meta");
+            const auto chunk_key = chunkPartKey(session_id, i);
+            const auto chunk_meta_key = chunkMetaKey(session_id, i);
             const auto expected_size = expectedChunkSize(i, chunk_count, chunk_size, total_size);
 
-            if(!std::filesystem::exists(chunk_file) || !std::filesystem::exists(chunk_meta_file)){
+            if(!storage_backend_.existsObject(chunk_key) || !storage_backend_.existsObject(chunk_meta_key)){
                 missing_indexes.push_back(i);
                 continue;
             }
 
-            std::ifstream meta_stream(chunk_meta_file);
-            if(!meta_stream.is_open()){
+            const auto meta_result = storage_backend_.readObject(chunk_meta_key);
+            if (!meta_result.ok) {
                 missing_indexes.push_back(i);
                 continue;
             }
 
-            std::stringstream meta_buffer;
-            meta_buffer << meta_stream.rdbuf();
-            const auto meta_text = meta_buffer.str();
+            const auto chunk_result = storage_backend_.readObject(chunk_key);
+            if (!chunk_result.ok) {
+                missing_indexes.push_back(i);
+                continue;
+            }
+            const auto& chunk_data = chunk_result.data;
+            const auto& meta_text = meta_result.data;
             const auto meta_size = extractUintField(meta_text, "size");
             const auto checksum_algorithm = extractStringField(meta_text, "checksum_algorithm");
             const auto checksum_expected = extractStringField(meta_text, "checksum");
-            const auto checksum_actual = crc32cFileHex(chunk_file);
-            const auto actual_size = std::filesystem::file_size(chunk_file);
+            const auto checksum_actual = crc32cHex(chunk_data);
+            const auto actual_size = chunk_data.size();
             if(meta_size == expected_size && actual_size == expected_size && checksum_algorithm == "crc32c" && checksum_actual == checksum_expected){
                 uploaded_indexes.push_back(i);
             }
@@ -391,7 +363,7 @@ namespace photobridge {
             chunk_size,
             chunk_count,
             status,
-            chunks_dir
+            std::filesystem::path{}
         };
         return UploadStatusResponse{UploadStatusResult::Success, session, uploaded_indexes, missing_indexes};
     }
@@ -399,11 +371,10 @@ namespace photobridge {
         if(!isSafeSessionId(session_id)){
             return false;
         }
-
-        const auto session_dir = temp_dir_/("upload_" + session_id);
-        std::error_code ec;
-        std::filesystem::remove_all(session_dir, ec);
-        return !ec;
+        if(!storage_backend_.existsObject(sessionKey(session_id))){
+            return false;
+        }
+        return storage_backend_.deletePrefix(uploadPrefix(session_id));
     }
 
     bool ChunkUploadStore::isSafeFilename(const std::string& filename) const{
@@ -419,60 +390,45 @@ namespace photobridge {
             return AbortUploadResult::InvalidSession;
         }
     
-        const auto session_dir = temp_dir_/("upload_" + session_id);
-        if(!std::filesystem::exists(session_dir)){
+        if(!storage_backend_.existsObject(sessionKey(session_id))){
             return AbortUploadResult::NotFound;
         }
-        if(!std::filesystem::is_directory(session_dir)){
-            return AbortUploadResult::InvalidSession;
-        }
-
-        std::error_code ec;
-        std::filesystem::remove_all(session_dir, ec);
-
-        return ec ? AbortUploadResult::AbortFailed : AbortUploadResult::Success;
+        return storage_backend_.deletePrefix(uploadPrefix(session_id)) ? AbortUploadResult::Success : AbortUploadResult::AbortFailed;
     }
 
-    CleanupExpiredUploadsResponse ChunkUploadStore::cleanupExpiredUploads(std::uintmax_t max_age_seconds) const{
+    CleanupExpiredUploadsResponse ChunkUploadStore::cleanupExpiredUploads(std::uintmax_t max_age_seconds) const {
         CleanupExpiredUploadsResponse response{};
-        if(max_age_seconds == 0){
+        if (max_age_seconds == 0) {
             return response;
         }
-        if(!std::filesystem::is_directory(temp_dir_)){
-            return response;
-        }
-        std::error_code ec;
-        std::filesystem::directory_iterator it(temp_dir_, ec);
+
+        const auto keys = storage_backend_.listKeys("uploads_tmp/");
         const auto now = std::filesystem::file_time_type::clock::now();
-        for(const auto &entry : std::filesystem::directory_iterator(temp_dir_)){
-            if(!entry.is_directory()){
+        const auto max_age = std::chrono::seconds(max_age_seconds);
+
+        for (const auto& key : keys) {
+            if (!key.ends_with("/session.json")) {
                 continue;
             }
 
-            const auto session_dir = entry.path();
-            const auto dirname = session_dir.filename().string();
-            if(dirname.find("upload_") != 0){
-                continue;
-            }
-
-            std::error_code time_ec;
-            const auto last_write = std::filesystem::last_write_time(session_dir, time_ec);
-            if(time_ec){
-                continue;
-            }
-            const auto age = now - last_write;
-            const auto max_age = std::chrono::seconds(max_age_seconds);
-            if(age <= max_age){
-                continue;
-            }
-            std::error_code remove_ec;
-            std::filesystem::remove_all(session_dir, remove_ec);
-            if(remove_ec){
+            const auto stat = storage_backend_.statObject(key);
+            if (!stat.ok) {
                 response.failed_count++;
                 continue;
             }
-            response.removed_count++;
+
+            if (now - stat.last_modified <= max_age) {
+                continue;
+            }
+
+            const auto prefix = key.substr(0, key.size() - std::string("session.json").size());
+            if (storage_backend_.deletePrefix(prefix)) {
+                response.removed_count++;
+            } else {
+                response.failed_count++;
+            }
         }
+    
         return response;
     }
 
