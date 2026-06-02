@@ -118,7 +118,13 @@ namespace photobridge {
             return false;
         }
         const auto path = resolveKey(prefix);
-        return std::filesystem::remove_all(path);
+        if(!std::filesystem::exists(path)){
+            return true;
+        }
+
+        std::error_code ec;
+        std::filesystem::remove_all(path, ec);
+        return !ec;
     }
     bool LocalStorageBackend::isSafeKey(const std::string& key) const{
         return !key.empty() 

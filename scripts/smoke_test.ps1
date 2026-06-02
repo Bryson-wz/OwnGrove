@@ -69,17 +69,352 @@ function Assert-NotContains {
     }
 }
 
+function Get-UploadObjectPaths {
+    param([Parameter(Mandatory = $true)][string]$SessionId)
+
+    $dataDir = Join-Path $ProjectRoot "data"
+    if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) {
+        return @()
+    }
+
+    $needle = "uploads_tmp" + [System.IO.Path]::DirectorySeparatorChar + "upload_$SessionId" + [System.IO.Path]::DirectorySeparatorChar
+    return @(
+        Get-ChildItem -LiteralPath $dataDir -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName.IndexOf($needle, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 } |
+            ForEach-Object { $_.FullName }
+    )
+}
+
+function Get-UploadObjectPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$SessionId,
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    $matches = Get-UploadObjectReplicaPaths $SessionId $RelativePath
+
+    if ($matches.Count -eq 0) {
+        return $null
+    }
+
+    return $matches[0]
+}
+
+function Get-UploadObjectReplicaPaths {
+    param(
+        [Parameter(Mandatory = $true)][string]$SessionId,
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    $dataDir = Join-Path $ProjectRoot "data"
+    if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) {
+        return @()
+    }
+
+    $suffix = Join-Path ("uploads_tmp\upload_$SessionId") $RelativePath
+    return @(
+        Get-ChildItem -LiteralPath $dataDir -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName.EndsWith($suffix, [System.StringComparison]::OrdinalIgnoreCase) } |
+            ForEach-Object { $_.FullName } |
+            Sort-Object
+    )
+}
+
+function Require-UploadObjectReplicas {
+    param(
+        [Parameter(Mandatory = $true)][string]$SessionId,
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [int]$MinimumCount = 1,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    $paths = @(Get-UploadObjectReplicaPaths $SessionId $RelativePath)
+    if ($paths.Count -lt $MinimumCount) {
+        throw "$Message Expected at least $MinimumCount replica(s), actual: $($paths.Count)"
+    }
+
+    return $paths
+}
+
+function Require-UploadObjectPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$SessionId,
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    $path = Get-UploadObjectPath $SessionId $RelativePath
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        throw $Message
+    }
+
+    return $path
+}
+
+function Get-StorageNodes {
+    return @((Invoke-GetText (New-ApiUrl "/api/storage/nodes")) | ConvertFrom-Json)
+}
+
+function Get-StorageNode {
+    param([Parameter(Mandatory = $true)][string]$NodeId)
+
+    $matches = @(Get-StorageNodes | Where-Object { $_.id -eq $NodeId })
+    if ($matches.Count -ne 1) {
+        throw "Expected exactly one storage node with id=$NodeId. Actual matches: $($matches.Count)"
+    }
+
+    return $matches[0]
+}
+
+function Set-StorageNodeAvailability {
+    param(
+        [Parameter(Mandatory = $true)][string]$NodeId,
+        [Parameter(Mandatory = $true)][bool]$Available
+    )
+
+    $availableText = "false"
+    if ($Available) {
+        $availableText = "true"
+    }
+
+    $url = New-ApiUrl "/api/storage/node/availability" @{
+        node_id = $NodeId
+        available = $availableText
+    }
+
+    $response = Invoke-PostText $url
+    Assert-Contains $response '"result":"success"' "Setting storage node availability failed."
+}
+
+function Assert-StorageNodeAvailability {
+    param(
+        [Parameter(Mandatory = $true)][string]$NodeId,
+        [Parameter(Mandatory = $true)][bool]$Expected
+    )
+
+    $node = Get-StorageNode $NodeId
+    if ([bool]$node.available -ne $Expected) {
+        throw "Storage node $NodeId returned unexpected availability. Expected: $Expected. Actual: $($node.available)"
+    }
+}
+
+function Get-NodeIdFromObjectPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    if ($Path -like "*\shard_0\*") { return "node-0" }
+    if ($Path -like "*\shard_1\*") { return "node-1" }
+    if ($Path -like "*\shard_2\*") { return "node-2" }
+
+    throw "Cannot infer storage node id from object path: $Path"
+}
+
+function Get-PlacementNodes {
+    param([Parameter(Mandatory = $true)][string]$Key)
+
+    $placementUrl = New-ApiUrl "/api/storage/placement" @{
+        key = $Key
+    }
+    $placement = Invoke-GetText $placementUrl | ConvertFrom-Json
+    return @($placement.nodes)
+}
+
+function Get-ReplicaAudit {
+    param([Parameter(Mandatory = $true)][string]$Key)
+
+    $auditUrl = New-ApiUrl "/api/storage/replicas/audit" @{
+        key = $Key
+    }
+    return (Invoke-GetText $auditUrl | ConvertFrom-Json)
+}
+
 $suffix = Get-Date -Format "yyyyMMddHHmmss"
 $abortChunkName = "smoke-chunk-abort-$suffix.bin"
 $chunkInitName = "smoke-chunk-init-$suffix.bin"
+$fallbackChunkName = "smoke-node-fallback-$suffix.bin"
+$quorumChunkName = "smoke-node-quorum-$suffix.bin"
+$repairChunkName = "smoke-replica-repair-$suffix.bin"
 $deleteName = "smoke-delete-$suffix.txt"
 $missingName = "smoke-missing-$suffix.txt"
 $uploadDir = Join-Path $ProjectRoot "data\uploads"
-$uploadTmpDir = Join-Path $ProjectRoot "data\uploads_tmp"
 
 Write-Host "[1/26] health check"
 $health = Invoke-GetText "$BaseUrl/health"
 Assert-Contains $health "OK" "Health check failed."
+
+Write-Host "[node] verify storage node availability API"
+Set-StorageNodeAvailability -NodeId "node-0" -Available $true
+foreach ($nodeId in @("node-0", "node-1", "node-2")) {
+    Get-StorageNode $nodeId | Out-Null
+}
+Assert-StorageNodeAvailability -NodeId "node-0" -Expected $true
+
+Write-Host "[node] mark node-0 unavailable"
+Set-StorageNodeAvailability -NodeId "node-0" -Available $false
+Assert-StorageNodeAvailability -NodeId "node-0" -Expected $false
+
+Write-Host "[node] restore node-0 availability"
+Set-StorageNodeAvailability -NodeId "node-0" -Available $true
+Assert-StorageNodeAvailability -NodeId "node-0" -Expected $true
+
+Write-Host "[node] verify replica read fallback when one node is unavailable"
+$fallbackChunk = "node!!"
+$fallbackInitUrl = New-ApiUrl "/api/uploads/init" @{
+    filename = $fallbackChunkName
+    size = $fallbackChunk.Length
+    chunk_size = $fallbackChunk.Length
+}
+$fallbackInitResponse = Invoke-PostText $fallbackInitUrl
+$fallbackSession = $fallbackInitResponse | ConvertFrom-Json
+
+if ([string]::IsNullOrWhiteSpace($fallbackSession.session_id)) {
+    throw "Fallback upload init did not return session_id. Actual: $fallbackInitResponse"
+}
+
+$fallbackChunkUrl = New-ApiUrl "/api/uploads/chunk" @{
+    session_id = $fallbackSession.session_id
+    index = 0
+}
+Assert-Contains (Invoke-PostText $fallbackChunkUrl $fallbackChunk) '"result":"success"' "Fallback test chunk upload failed."
+
+$fallbackPartPaths = @(Require-UploadObjectReplicas -SessionId $fallbackSession.session_id -RelativePath "chunks\chunk_0.part" -MinimumCount 2 -Message "Fallback test chunk was not replicated.")
+$fallbackDownNode = Get-NodeIdFromObjectPath $fallbackPartPaths[0]
+
+Set-StorageNodeAvailability -NodeId $fallbackDownNode -Available $false
+try {
+    $fallbackStatusUrl = New-ApiUrl "/api/uploads/status" @{
+        session_id = $fallbackSession.session_id
+    }
+    $fallbackStatus = Invoke-GetText $fallbackStatusUrl | ConvertFrom-Json
+
+    if ($fallbackStatus.uploaded_count -ne 1 -or $fallbackStatus.missing_count -ne 0) {
+        throw "Replica read fallback failed when $fallbackDownNode is unavailable. Uploaded: $($fallbackStatus.uploaded_count), missing: $($fallbackStatus.missing_count)"
+    }
+}
+finally {
+    Set-StorageNodeAvailability -NodeId $fallbackDownNode -Available $true
+}
+
+$fallbackAbortUrl = New-ApiUrl "/api/uploads/abort" @{
+    session_id = $fallbackSession.session_id
+}
+Assert-Contains (Invoke-PostText $fallbackAbortUrl) '"result":"success"' "Fallback test cleanup failed."
+
+Write-Host "[node] verify write quorum fails when a placement node is unavailable"
+$quorumChunk = "quorum"
+$quorumInitUrl = New-ApiUrl "/api/uploads/init" @{
+    filename = $quorumChunkName
+    size = $quorumChunk.Length
+    chunk_size = $quorumChunk.Length
+}
+$quorumInitResponse = Invoke-PostText $quorumInitUrl
+$quorumSession = $quorumInitResponse | ConvertFrom-Json
+
+if ([string]::IsNullOrWhiteSpace($quorumSession.session_id)) {
+    throw "Quorum upload init did not return session_id. Actual: $quorumInitResponse"
+}
+
+$quorumChunkKey = "uploads_tmp/upload_$($quorumSession.session_id)/chunks/chunk_0.part"
+$quorumPlacementNodes = @(Get-PlacementNodes $quorumChunkKey)
+if ($quorumPlacementNodes.Count -lt 2) {
+    throw "Placement endpoint returned fewer than 2 nodes for quorum test key. Actual: $($quorumPlacementNodes -join ',')"
+}
+
+$quorumDownNode = $quorumPlacementNodes[0]
+$quorumChunkUrl = New-ApiUrl "/api/uploads/chunk" @{
+    session_id = $quorumSession.session_id
+    index = 0
+}
+
+Set-StorageNodeAvailability -NodeId $quorumDownNode -Available $false
+try {
+    try {
+        $quorumUploadResponse = Invoke-WebRequest `
+            -Uri $quorumChunkUrl `
+            -Method Post `
+            -Body $quorumChunk `
+            -ContentType "text/plain" `
+            -UseBasicParsing
+
+        throw "Expected quorum-protected chunk upload to fail while $quorumDownNode is unavailable, but request succeeded. Response: $($quorumUploadResponse.Content)"
+    } catch {
+        if ($null -eq $_.Exception.Response) {
+            throw "Expected 500 quorum failure while $quorumDownNode is unavailable. Actual: $($_.Exception.Message)"
+        }
+
+        if ($_.Exception.Response.StatusCode.value__ -ne 500) {
+            throw "Expected 500 quorum failure while $quorumDownNode is unavailable. Actual: $($_.Exception.Response.StatusCode.value__)"
+        }
+    }
+}
+finally {
+    Set-StorageNodeAvailability -NodeId $quorumDownNode -Available $true
+}
+
+$quorumAbortUrl = New-ApiUrl "/api/uploads/abort" @{
+    session_id = $quorumSession.session_id
+}
+Assert-Contains (Invoke-PostText $quorumAbortUrl) '"result":"success"' "Quorum test cleanup failed."
+
+Write-Host "[node] verify replica audit and repair for a missing object replica"
+$repairChunk = "repair"
+$repairInitUrl = New-ApiUrl "/api/uploads/init" @{
+    filename = $repairChunkName
+    size = $repairChunk.Length
+    chunk_size = $repairChunk.Length
+}
+$repairInitResponse = Invoke-PostText $repairInitUrl
+$repairSession = $repairInitResponse | ConvertFrom-Json
+
+if ([string]::IsNullOrWhiteSpace($repairSession.session_id)) {
+    throw "Replica repair upload init did not return session_id. Actual: $repairInitResponse"
+}
+
+$repairChunkUrl = New-ApiUrl "/api/uploads/chunk" @{
+    session_id = $repairSession.session_id
+    index = 0
+}
+Assert-Contains (Invoke-PostText $repairChunkUrl $repairChunk) '"result":"success"' "Replica repair test chunk upload failed."
+
+$repairKey = "uploads_tmp/upload_$($repairSession.session_id)/chunks/chunk_0.part"
+$repairPartPaths = @(Require-UploadObjectReplicas -SessionId $repairSession.session_id -RelativePath "chunks\chunk_0.part" -MinimumCount 2 -Message "Replica repair test chunk was not replicated.")
+
+$repairAuditBeforeDelete = Get-ReplicaAudit $repairKey
+if (@($repairAuditBeforeDelete.replicas).Count -ne 2) {
+    throw "Replica audit returned unexpected replica count before delete. Expected: 2. Actual: $(@($repairAuditBeforeDelete.replicas).Count)"
+}
+foreach ($replica in @($repairAuditBeforeDelete.replicas)) {
+    if (-not [bool]$replica.exists -or [int64]$replica.size -ne $repairChunk.Length) {
+        throw "Replica audit before delete returned unexpected item. Actual: $($repairAuditBeforeDelete | ConvertTo-Json -Compress)"
+    }
+}
+
+Remove-Item -LiteralPath $repairPartPaths[0] -Force
+
+$repairAuditAfterDelete = Get-ReplicaAudit $repairKey
+$missingReplicas = @($repairAuditAfterDelete.replicas | Where-Object { -not [bool]$_.exists })
+if ($missingReplicas.Count -ne 1) {
+    throw "Replica audit did not report exactly one missing replica after delete. Actual: $($repairAuditAfterDelete | ConvertTo-Json -Compress)"
+}
+
+$repairUrl = New-ApiUrl "/api/storage/replicas/repair" @{
+    key = $repairKey
+}
+$repairResponse = Invoke-PostText $repairUrl | ConvertFrom-Json
+if ($repairResponse.result -ne "success" -or -not [bool]$repairResponse.repaired -or [int64]$repairResponse.repaired_count -ne 1) {
+    throw "Replica repair endpoint returned unexpected response. Actual: $($repairResponse | ConvertTo-Json -Compress)"
+}
+
+$repairAuditAfterRepair = Get-ReplicaAudit $repairKey
+foreach ($replica in @($repairAuditAfterRepair.replicas)) {
+    if (-not [bool]$replica.exists -or [int64]$replica.size -ne $repairChunk.Length) {
+        throw "Replica audit after repair did not show all replicas restored. Actual: $($repairAuditAfterRepair | ConvertTo-Json -Compress)"
+    }
+}
+
+$repairAbortUrl = New-ApiUrl "/api/uploads/abort" @{
+    session_id = $repairSession.session_id
+}
+Assert-Contains (Invoke-PostText $repairAbortUrl) '"result":"success"' "Replica repair test cleanup failed."
 
 $abortChunk = "abort "
 $chunk0 = "hello "
@@ -100,7 +435,6 @@ if ([string]::IsNullOrWhiteSpace($abortSession.session_id)) {
     throw "Abort upload init did not return session_id. Actual: $abortInitResponse"
 }
 
-$abortSessionDir = Join-Path $uploadTmpDir ("upload_" + $abortSession.session_id)
 $abortUploadUrl0 = New-ApiUrl "/api/uploads/chunk" @{
     session_id = $abortSession.session_id
     index = 0
@@ -108,10 +442,9 @@ $abortUploadUrl0 = New-ApiUrl "/api/uploads/chunk" @{
 
 Write-Host "[3/26] upload one chunk before abort"
 Assert-Contains (Invoke-PostText $abortUploadUrl0 $abortChunk) '"result":"success"' "Abort test chunk upload failed."
-
-if (-not (Test-Path -LiteralPath $abortSessionDir -PathType Container)) {
-    throw "Abort test session directory was not created at $abortSessionDir."
-}
+Require-UploadObjectReplicas -SessionId $abortSession.session_id -RelativePath "session.json" -MinimumCount 2 -Message "Abort test session object was not replicated." | Out-Null
+Require-UploadObjectReplicas -SessionId $abortSession.session_id -RelativePath "chunks\chunk_0.part" -MinimumCount 2 -Message "Abort test chunk object was not replicated." | Out-Null
+Require-UploadObjectReplicas -SessionId $abortSession.session_id -RelativePath "chunks\chunk_0.meta" -MinimumCount 2 -Message "Abort test chunk meta object was not replicated." | Out-Null
 
 Write-Host "[4/26] abort upload session"
 $abortUrl = New-ApiUrl "/api/uploads/abort" @{
@@ -120,8 +453,8 @@ $abortUrl = New-ApiUrl "/api/uploads/abort" @{
 $abortResponse = Invoke-PostText $abortUrl
 Assert-Contains $abortResponse '"result":"success"' "Abort endpoint did not return success."
 
-if (Test-Path -LiteralPath $abortSessionDir) {
-    throw "Abort endpoint did not remove session directory: $abortSessionDir"
+if (@(Get-UploadObjectPaths $abortSession.session_id).Count -ne 0) {
+    throw "Abort endpoint did not remove all upload objects for session: $($abortSession.session_id)"
 }
 
 Write-Host "[5/26] aborted session should be unavailable"
@@ -166,17 +499,8 @@ if ($chunkSession.status -ne "pending") {
     throw "Chunk upload init returned unexpected status. Expected: pending. Actual: $($chunkSession.status). Response: $chunkInitResponse"
 }
 
-$chunkSessionDir = Join-Path $uploadTmpDir ("upload_" + $chunkSession.session_id)
-$chunkSessionFile = Join-Path $chunkSessionDir "session.json"
-$chunkSessionChunksDir = Join-Path $chunkSessionDir "chunks"
-
-if (-not (Test-Path -LiteralPath $chunkSessionFile)) {
-    throw "Chunk upload init did not create session.json at $chunkSessionFile. Make sure the server runs from ProjectRoot: $ProjectRoot"
-}
-
-if (-not (Test-Path -LiteralPath $chunkSessionChunksDir -PathType Container)) {
-    throw "Chunk upload init did not create chunks directory at $chunkSessionChunksDir. Make sure the server runs from ProjectRoot: $ProjectRoot"
-}
+$chunkSessionFiles = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "session.json" -MinimumCount 2 -Message "Chunk upload init did not replicate session object. Make sure the server runs from ProjectRoot: $ProjectRoot")
+$chunkSessionFile = $chunkSessionFiles[0]
 
 Assert-Contains (Get-Content -LiteralPath $chunkSessionFile -Raw) $chunkInitName "Chunk upload session.json does not include filename."
 
@@ -193,31 +517,24 @@ $chunkUploadUrl2 = New-ApiUrl "/api/uploads/chunk" @{
 Assert-Contains (Invoke-PostText $chunkUploadUrl0 $chunk0) '"result":"success"' "Chunk 0 upload failed."
 Assert-Contains (Invoke-PostText $chunkUploadUrl2 $chunk2) '"result":"success"' "Chunk 2 upload failed."
 
-$chunk0PartPath = Join-Path $chunkSessionChunksDir "chunk_0.part"
-$chunk0MetaPath = Join-Path $chunkSessionChunksDir "chunk_0.meta"
-$chunk1PartPath = Join-Path $chunkSessionChunksDir "chunk_1.part"
-$chunk1MetaPath = Join-Path $chunkSessionChunksDir "chunk_1.meta"
-$chunk2PartPath = Join-Path $chunkSessionChunksDir "chunk_2.part"
-$chunk2MetaPath = Join-Path $chunkSessionChunksDir "chunk_2.meta"
-
-if (-not (Test-Path -LiteralPath $chunk0PartPath)) {
-    throw "Chunk 0 file was not created."
-}
-
-if (-not (Test-Path -LiteralPath $chunk0MetaPath)) {
-    throw "Chunk 0 meta file was not created."
-}
-
-if (-not (Test-Path -LiteralPath $chunk2PartPath)) {
-    throw "Chunk 2 file was not created."
-}
-
-if (-not (Test-Path -LiteralPath $chunk2MetaPath)) {
-    throw "Chunk 2 meta file was not created."
-}
+$chunk0PartPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.part" -MinimumCount 2 -Message "Chunk 0 file was not replicated.")
+$chunk0MetaPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.meta" -MinimumCount 2 -Message "Chunk 0 meta file was not replicated.")
+$chunk2PartPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_2.part" -MinimumCount 2 -Message "Chunk 2 file was not replicated.")
+$chunk2MetaPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_2.meta" -MinimumCount 2 -Message "Chunk 2 meta file was not replicated.")
+$chunk0PartPath = $chunk0PartPaths[0]
+$chunk0MetaPath = $chunk0MetaPaths[0]
+$chunk2PartPath = $chunk2PartPaths[0]
+$chunk2MetaPath = $chunk2MetaPaths[0]
 
 $chunkStatusUrl = New-ApiUrl "/api/uploads/status" @{
     session_id = $chunkSession.session_id
+}
+
+Remove-Item -LiteralPath $chunk0PartPaths[0] -Force
+$chunkStatusAfterSingleReplicaDelete = Invoke-GetText $chunkStatusUrl | ConvertFrom-Json
+
+if ($chunkStatusAfterSingleReplicaDelete.uploaded_count -ne 2 -or $chunkStatusAfterSingleReplicaDelete.missing_count -ne 1) {
+    throw "Chunk status did not fall back to the remaining replica after deleting one chunk 0 part replica. Uploaded: $($chunkStatusAfterSingleReplicaDelete.uploaded_count), missing: $($chunkStatusAfterSingleReplicaDelete.missing_count)"
 }
 
 Write-Host "[8/26] same-size different chunk content should conflict"
@@ -241,9 +558,12 @@ try {
 }
 
 Write-Host "[9/26] corrupt chunk 0 meta checksum should be treated as missing"
-$chunk0MetaText = Get-Content -LiteralPath $chunk0MetaPath -Raw
-$chunk0CorruptMetaText = $chunk0MetaText -replace '"checksum":"[^"]+"', '"checksum":"deadbeef"'
-[System.IO.File]::WriteAllText($chunk0MetaPath, $chunk0CorruptMetaText, [System.Text.Encoding]::UTF8)
+$chunk0MetaPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.meta" -MinimumCount 2 -Message "Chunk 0 meta replicas were not found before corruption.")
+foreach ($path in $chunk0MetaPaths) {
+    $chunk0MetaText = Get-Content -LiteralPath $path -Raw
+    $chunk0CorruptMetaText = $chunk0MetaText -replace '"checksum":"[^"]+"', '"checksum":"deadbeef"'
+    [System.IO.File]::WriteAllText($path, $chunk0CorruptMetaText, [System.Text.Encoding]::UTF8)
+}
 
 $chunkStatusAfterMetaCorrupt = Invoke-GetText $chunkStatusUrl | ConvertFrom-Json
 
@@ -267,7 +587,10 @@ Write-Host "[10/26] re-upload chunk 0 should repair corrupt meta"
 Assert-Contains (Invoke-PostText $chunkUploadUrl0 $chunk0) '"result":"success"' "Re-uploading chunk 0 should repair corrupt meta."
 
 Write-Host "[11/26] missing meta should make chunk 0 incomplete"
-Remove-Item -LiteralPath $chunk0MetaPath -Force
+$chunk0MetaPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.meta" -MinimumCount 2 -Message "Chunk 0 meta replicas were not rebuilt before delete test.")
+foreach ($path in $chunk0MetaPaths) {
+    Remove-Item -LiteralPath $path -Force
+}
 $chunkStatusAfterMetaDelete = Invoke-GetText $chunkStatusUrl | ConvertFrom-Json
 
 if ($chunkStatusAfterMetaDelete.uploaded_count -ne 1) {
@@ -288,13 +611,14 @@ if (($chunkStatusAfterMetaDelete.missing_indexes -join ",") -ne "0,1") {
 
 Write-Host "[12/26] re-upload chunk 0 should rebuild missing meta"
 Assert-Contains (Invoke-PostText $chunkUploadUrl0 $chunk0) '"result":"success"' "Re-uploading chunk 0 should rebuild missing meta."
-
-if (-not (Test-Path -LiteralPath $chunk0MetaPath)) {
-    throw "Chunk 0 meta file was not rebuilt by idempotent re-upload."
-}
+$chunk0MetaPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.meta" -MinimumCount 2 -Message "Chunk 0 meta replicas were not rebuilt by idempotent re-upload.")
+$chunk0MetaPath = $chunk0MetaPaths[0]
 
 Write-Host "[13/26] corrupt chunk 0 part should be treated as missing and fail complete"
-[System.IO.File]::WriteAllText($chunk0PartPath, "HELLO ", [System.Text.Encoding]::ASCII)
+$chunk0PartPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.part" -MinimumCount 1 -Message "Chunk 0 part was not found before corruption.")
+foreach ($path in $chunk0PartPaths) {
+    [System.IO.File]::WriteAllText($path, "HELLO ", [System.Text.Encoding]::ASCII)
+}
 $chunkStatusAfterPartCorrupt = Invoke-GetText $chunkStatusUrl | ConvertFrom-Json
 
 if ($chunkStatusAfterPartCorrupt.uploaded_count -ne 1) {
@@ -334,9 +658,16 @@ try {
 }
 
 Write-Host "[14/26] remove corrupt chunk 0 and re-upload clean chunk"
-Remove-Item -LiteralPath $chunk0PartPath -Force
-Remove-Item -LiteralPath $chunk0MetaPath -Force
+$chunk0PartPaths = @(Get-UploadObjectReplicaPaths $chunkSession.session_id "chunks\chunk_0.part")
+$chunk0MetaPaths = @(Get-UploadObjectReplicaPaths $chunkSession.session_id "chunks\chunk_0.meta")
+foreach ($path in $chunk0PartPaths + $chunk0MetaPaths) {
+    Remove-Item -LiteralPath $path -Force
+}
 Assert-Contains (Invoke-PostText $chunkUploadUrl0 $chunk0) '"result":"success"' "Re-uploading chunk 0 after corrupt part cleanup failed."
+$chunk0PartPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.part" -MinimumCount 2 -Message "Chunk 0 replicas were not rebuilt after corrupt part cleanup.")
+$chunk0MetaPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_0.meta" -MinimumCount 2 -Message "Chunk 0 meta replicas were not rebuilt after corrupt part cleanup.")
+$chunk0PartPath = $chunk0PartPaths[0]
+$chunk0MetaPath = $chunk0MetaPaths[0]
 
 Write-Host "[15/26] status should report missing chunk 1"
 $chunkStatusBeforeRepair = Invoke-GetText $chunkStatusUrl | ConvertFrom-Json
@@ -363,14 +694,10 @@ $chunkUploadUrl1 = New-ApiUrl "/api/uploads/chunk" @{
     index = 1
 }
 Assert-Contains (Invoke-PostText $chunkUploadUrl1 $chunk1) '"result":"success"' "Chunk 1 upload failed."
-
-if (-not (Test-Path -LiteralPath $chunk1PartPath)) {
-    throw "Chunk 1 file was not created."
-}
-
-if (-not (Test-Path -LiteralPath $chunk1MetaPath)) {
-    throw "Chunk 1 meta file was not created."
-}
+$chunk1PartPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_1.part" -MinimumCount 2 -Message "Chunk 1 file was not replicated.")
+$chunk1MetaPaths = @(Require-UploadObjectReplicas -SessionId $chunkSession.session_id -RelativePath "chunks\chunk_1.meta" -MinimumCount 2 -Message "Chunk 1 meta file was not replicated.")
+$chunk1PartPath = $chunk1PartPaths[0]
+$chunk1MetaPath = $chunk1MetaPaths[0]
 
 Write-Host "[17/26] status should report no missing chunks"
 $chunkStatusAfterRepair = Invoke-GetText $chunkStatusUrl | ConvertFrom-Json
@@ -428,8 +755,8 @@ if (Test-Path -LiteralPath $chunkOutputPath) {
     throw "Chunk-completed physical file still exists after delete endpoint: $chunkOutputPath"
 }
 
-if (Test-Path -LiteralPath $chunkSessionDir) {
-    throw "Chunk upload session directory still exists after successful complete: $chunkSessionDir"
+if (@(Get-UploadObjectPaths $chunkSession.session_id).Count -ne 0) {
+    throw "Chunk upload temporary objects still exist after successful complete for session: $($chunkSession.session_id)"
 }
 
 Write-Host "[20/26] upload file for delete flow: $deleteName"

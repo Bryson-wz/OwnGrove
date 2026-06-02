@@ -3,6 +3,8 @@
 #include "photobridge/FileStore.h"
 #include "photobridge/ChunkUploadStore.h"
 #include "photobridge/LocalStorageBackend.h"
+#include "photobridge/ReplicaStorageBackend.h"
+#include "photobridge/StorageNode.h"
 
 #include "httplib.h"
 #include <iostream>
@@ -12,6 +14,7 @@
 #include <chrono>
 #include <ctime>
 #include <iomanip>
+#include <vector>
 
 
 namespace{
@@ -103,7 +106,17 @@ bool HttpServer::start(const char* host, int port)
     const std::string expected_token = getTokenFromEnv();
     FileStore file_store("data/uploads");
     MetadataStore metadata_store("data/metadata/files.jsonl");
-    LocalStorageBackend storage_backend("data");
+
+    LocalStorageBackend shard0("data/shards/shard_0");
+    LocalStorageBackend shard1("data/shards/shard_1");
+    LocalStorageBackend shard2("data/shards/shard_2");
+
+    StorageNode node0("node-0", shard0);
+    StorageNode node1("node-1", shard1);
+    StorageNode node2("node-2", shard2);
+
+    std::vector<StorageNode*> nodes = {&node0, &node1, &node2};
+    ReplicaStorageBackend storage_backend(nodes, 2, 2);
     ChunkUploadStore chunk_upload_store("data/uploads_tmp", "data/uploads", storage_backend);
 
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
@@ -812,6 +825,148 @@ bool HttpServer::start(const char* host, int port)
         res.status = 200;
         res.set_content(json.str(), "application/json");
         return;
+    });
+    server.Get("/api/storage/nodes",[&storage_backend, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        std::ostringstream json;
+        json << "[";
+        bool first = true;
+        for(const auto& node : storage_backend.nodes()){
+            if(!first){
+                json << ",";
+            }
+            json << "{\"id\":\"" << node->id()
+                 << "\",\"available\":" << (node->isAvailable() ? "true" : "false")
+                 << "}";
+            first = false;
+        }
+        json << "]";
+        res.set_content(json.str(), "application/json");
+        return;
+    });
+    server.Post("/api/storage/node/availability",[&storage_backend, expected_token](const httplib::Request& req, httplib::Response& res){
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto node_id = req.get_param_value("node_id");
+        const auto available = req.get_param_value("available");
+        if(node_id.empty() || available.empty()){
+            res.status = 400;
+            res.set_content("Node ID and availability are required", "text/plain");
+            return;
+        }
+        bool new_available = false;
+        if(available == "true"){
+            new_available = true;
+        }else if(available == "false"){
+            new_available = false;
+        }else{
+            res.status = 400;
+            res.set_content("Invalid availability", "text/plain");
+            return;
+        }
+        if(!storage_backend.setNodeAvailability(node_id, new_available)){
+            res.status = 404;
+            res.set_content("Node not found", "text/plain");
+            return;
+        }
+        res.status = 200;
+        std::ostringstream json;
+        json << "{\"result\":\"success\"}";
+        res.set_content(json.str(), "application/json");
+        return;
+    });
+    server.Get("/api/storage/placement", [&storage_backend, expected_token](const httplib::Request& req, httplib::Response& res) {
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+    
+        const auto key = req.get_param_value("key");
+        if (key.empty()) {
+            res.status = 400;
+            res.set_content("Key is required", "text/plain");
+            return;
+        }
+    
+        const auto node_ids = storage_backend.replicaNodeIdsForKey(key);
+    
+        std::ostringstream json;
+        json << "{\"key\":\"" << escapeJson(key) << "\",\"nodes\":[";
+        for (std::size_t i = 0; i < node_ids.size(); ++i) {
+            if (i > 0) {
+                json << ",";
+            }
+            json << "\"" << escapeJson(node_ids[i]) << "\"";
+        }
+        json << "]}";
+    
+        res.status = 200;
+        res.set_content(json.str(), "application/json");
+    });
+    server.Get("/api/storage/replicas/audit", [&storage_backend, expected_token](const httplib::Request& req, httplib::Response& res) {
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+        const auto key = req.get_param_value("key");
+        if (key.empty()) {
+            res.status = 400;
+            res.set_content("Key is required", "text/plain");
+            return;
+        }
+        const auto items = storage_backend.auditReplicasForKey(key);
+        std::ostringstream json;
+        json << "{\"key\":\"" << escapeJson(key) << "\",\"replicas\":[";
+        for(std::size_t i = 0; i < items.size(); ++i){
+            if(i > 0){
+                json << ",";
+            }
+            json << "{"
+            << "\"node_id\":\"" << escapeJson(items[i].node_id) << "\","
+            << "\"available\":" << (items[i].available ? "true" : "false") << ","
+            << "\"exists\":" << (items[i].exists ? "true" : "false") << ","
+            << "\"size\":" << items[i].size
+            << "}";
+        }
+        json << "]}";
+        res.set_content(json.str(), "application/json");
+        return;
+    });
+    server.Post("/api/storage/replicas/repair", [&storage_backend, expected_token](const httplib::Request& req, httplib::Response& res) {
+        if (!isAuthorized(req, expected_token)) {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+            return;
+        }
+    
+        const auto key = req.get_param_value("key");
+        if (key.empty()) {
+            res.status = 400;
+            res.set_content("Key is required", "text/plain");
+            return;
+        }
+    
+        const auto result = storage_backend.repairReplicasForKey(key);
+    
+        std::ostringstream json;
+        json << "{"
+             << "\"result\":\"success\","
+             << "\"repaired\":" << (result.repaired ? "true" : "false") << ","
+             << "\"repaired_count\":" << result.repaired_count << ","
+             << "\"source_node_id\":\"" << escapeJson(result.source_node_id) << "\""
+             << "}";
+    
+        res.status = 200;
+        res.set_content(json.str(), "application/json");
     });
     std::cout << "Listening on http://" << host << ":" << port << std::endl;
     return server.listen(host, port);
