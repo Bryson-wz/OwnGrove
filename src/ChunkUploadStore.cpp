@@ -116,6 +116,7 @@ namespace photobridge {
     {
     }
     InitSessionResponse ChunkUploadStore::initSession(const std::string& filename,std::uintmax_t total_size,std::uintmax_t chunk_size) const {
+        std::lock_guard<std::mutex> lock(mutex_);
         if(!isSafeFilename(filename)){
             return InitSessionResponse{InitResult::InvalidFilename, ChunkUploadSession{}};
         }
@@ -145,6 +146,7 @@ namespace photobridge {
         return InitSessionResponse{InitResult::Success, ChunkUploadSession{session_id, filename, total_size, chunk_size, chunk_count, "pending", chunks_dir}};
     }
     SaveChunkResult ChunkUploadStore::saveChunk(const std::string& session_id,std::uintmax_t index,const std::string& chunk) const{
+        std::lock_guard<std::mutex> lock(mutex_);
         if(session_id.empty()){
             return SaveChunkResult::InvalidSession;
         }
@@ -228,6 +230,7 @@ namespace photobridge {
     }
 
     CompleteUploadResponse ChunkUploadStore::completeUpload(const std::string& session_id) const{
+        std::lock_guard<std::mutex> lock(mutex_);
         const auto session_result = storage_backend_.readObject(sessionKey(session_id));
         if(!session_result.ok){
             return {CompleteUploadResult::InvalidSession,"",0};
@@ -243,7 +246,8 @@ namespace photobridge {
         if(filename.empty() || chunk_count == 0 || chunk_size == 0 || total_size == 0){
             return {CompleteUploadResult::InvalidSession,"",0};
         }
-        std::filesystem::create_directories(upload_dir_);
+        std::error_code ec;
+        std::filesystem::create_directories(upload_dir_, ec);
         const auto output_path = upload_dir_ / filename;
         std::ofstream output_file(output_path,std::ios::binary);
         if(!output_file.is_open()){
@@ -254,24 +258,24 @@ namespace photobridge {
             const auto chunk_meta_key = chunkMetaKey(session_id, i);
             if(!storage_backend_.existsObject(chunk_key)){
                 output_file.close();
-                std::filesystem::remove(output_path);
+                std::filesystem::remove(output_path, ec);
                 return {CompleteUploadResult::MissingChunk,filename,0};
             }
             if (!storage_backend_.existsObject(chunk_meta_key)) {
                 output_file.close();
-                std::filesystem::remove(output_path);
+                std::filesystem::remove(output_path, ec);
                 return {CompleteUploadResult::MergeFailed, filename, 0};
             }
             const auto meta_result = storage_backend_.readObject(chunk_meta_key);
             if (!meta_result.ok) {
                 output_file.close();
-                std::filesystem::remove(output_path);
+                std::filesystem::remove(output_path, ec);
                 return {CompleteUploadResult::MergeFailed, filename, 0};
             }
             const auto chunk_result = storage_backend_.readObject(chunk_key);
             if(!chunk_result.ok){
                 output_file.close();
-                std::filesystem::remove(output_path);
+                std::filesystem::remove(output_path, ec);
                 return {CompleteUploadResult::MergeFailed, filename, 0};
             }
             const auto& meta_text = meta_result.data;
@@ -284,20 +288,22 @@ namespace photobridge {
             const auto expected_size = expectedChunkSize(i, chunk_count, chunk_size, total_size);
             if(meta_size != actual_size || actual_size != expected_size || checksum_algorithm != "crc32c" || checksum_actual != checksum_expected){
                 output_file.close();
-                std::filesystem::remove(output_path);
+                std::filesystem::remove(output_path, ec);
                 return {CompleteUploadResult::MergeFailed,filename,0};
             }
             output_file.write(chunk_data.data(), static_cast<std::streamsize>(chunk_data.size()));
             if(!output_file.good()){
                 output_file.close();
-                std::filesystem::remove(output_path);
+                std::filesystem::remove(output_path, ec);
                 return {CompleteUploadResult::MergeFailed,"",0};
             }
         }
         output_file.close();
-        return {CompleteUploadResult::Success,filename,std::filesystem::file_size(output_path)};
+        const auto final_size = std::filesystem::file_size(output_path, ec);
+        return {CompleteUploadResult::Success, filename, ec ? static_cast<std::uintmax_t>(0) : final_size};
     }
     UploadStatusResponse ChunkUploadStore::getUploadStatus(const std::string& session_id) const{
+        std::lock_guard<std::mutex> lock(mutex_);
         if(session_id.empty()){
             return UploadStatusResponse{UploadStatusResult::InvalidSession, ChunkUploadSession{}, {}, {}};
         }
@@ -368,6 +374,7 @@ namespace photobridge {
         return UploadStatusResponse{UploadStatusResult::Success, session, uploaded_indexes, missing_indexes};
     }
     bool ChunkUploadStore::cleanupSession(const std::string& session_id) const{
+        std::lock_guard<std::mutex> lock(mutex_);
         if(!isSafeSessionId(session_id)){
             return false;
         }
@@ -386,6 +393,7 @@ namespace photobridge {
         return std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
     }
     AbortUploadResult ChunkUploadStore::abortUpload(const std::string& session_id) const{
+        std::lock_guard<std::mutex> lock(mutex_);
         if (!isSafeSessionId(session_id)) {
             return AbortUploadResult::InvalidSession;
         }
@@ -397,6 +405,7 @@ namespace photobridge {
     }
 
     CleanupExpiredUploadsResponse ChunkUploadStore::cleanupExpiredUploads(std::uintmax_t max_age_seconds) const {
+        std::lock_guard<std::mutex> lock(mutex_);
         CleanupExpiredUploadsResponse response{};
         if (max_age_seconds == 0) {
             return response;

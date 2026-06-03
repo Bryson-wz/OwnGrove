@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,7 @@ namespace photobridge {
         private:
             std::filesystem::path metadata_path_;
             MetadataReplayResult replayMetadata() const;
+            mutable std::mutex mutex_;
         };
 
 } // namespace photobridge

@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <string>
 #include <cstdint>
+#include <mutex>
 #include <vector>
 
 namespace photobridge {
@@ -102,10 +103,10 @@ namespace photobridge {
         std::filesystem::path upload_dir_;
         bool isSafeFilename(const std::string& filename) const;
         bool isSafeSessionId(const std::string& session_id) const;
-        bool deleteUploadObjects(const std::string& session_id) const;
         std::string generateSessionId() const;
 
         StorageBackend& storage_backend_;
+        mutable std::mutex mutex_;
         
     };
 }

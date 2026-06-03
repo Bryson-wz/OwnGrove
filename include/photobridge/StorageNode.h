@@ -4,6 +4,7 @@
 
 #include <string>
 #include <vector>
+#include <atomic>
 
 namespace photobridge {
     class StorageNode {
@@ -26,6 +27,6 @@ namespace photobridge {
     private:
         std::string node_id_;
         StorageBackend& storage_backend_;
-        bool available_ = true;
+        std::atomic<bool> available_{true};
     };
 }

@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <vector>
 #include <utility>
+#include <system_error>
 
 namespace photobridge {
     LocalStorageBackend::LocalStorageBackend(std::filesystem::path root_dir)
@@ -17,7 +18,8 @@ namespace photobridge {
             return false;
         }
         const auto path = resolveKey(key);
-        std::filesystem::create_directories(path.parent_path());
+        std::error_code ec;
+        std::filesystem::create_directories(path.parent_path(), ec);
         std::ofstream file(path, std::ios::binary);
         if(!file.is_open()){
             return false;
@@ -43,7 +45,8 @@ namespace photobridge {
             return false;
         }
         const auto path = resolveKey(key);
-        return std::filesystem::remove(path);
+        std::error_code ec;
+        return std::filesystem::remove(path, ec);
     }
     bool LocalStorageBackend::existsObject(const std::string& key) const{
         if(!isSafeKey(key)){

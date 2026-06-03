@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <utility>
+#include <system_error>
 
 namespace{
     std::string escapeJson(const std::string& text){
@@ -91,7 +92,9 @@ namespace photobridge {
 
     }
     bool MetadataStore::appendFile(const FileMetadata& metadata) const{
-        std::filesystem::create_directories(metadata_path_.parent_path());
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::error_code ec;
+        std::filesystem::create_directories(metadata_path_.parent_path(), ec);
         std::ofstream file(metadata_path_,std::ios::app);
         if(!file.is_open()){
             return false;
@@ -100,6 +103,7 @@ namespace photobridge {
     }
     std::string MetadataStore::readAll() const
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::ifstream file(metadata_path_);
         if(!file.is_open())
         {
@@ -111,6 +115,7 @@ namespace photobridge {
     }
     std::uint64_t MetadataStore::countRecords() const
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::ifstream file(metadata_path_);
         if(!file.is_open())
         {
@@ -130,6 +135,7 @@ namespace photobridge {
 
     std::vector<FileMetadata> MetadataStore::listFiles() const
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::vector<FileMetadata> files;
         const auto replay_result = replayMetadata();
     
@@ -172,17 +178,19 @@ namespace photobridge {
         return issues;
     }
     std::vector<FileMetadata> MetadataStore::listLatestRecords() const{
+        std::lock_guard<std::mutex> lock(mutex_);
         return  replayMetadata().records;
     }
     bool MetadataStore::compact() const{
-
+        std::lock_guard<std::mutex> lock(mutex_);
         const auto replay_result = replayMetadata();
         if (replay_result.skipped_records > 0) {
             return false;
         }
         const auto& records = replay_result.records;
 
-        std::filesystem::create_directories(metadata_path_.parent_path());
+        std::error_code ec;
+        std::filesystem::create_directories(metadata_path_.parent_path(), ec);
         auto tmp_path = metadata_path_;
         tmp_path += ".tmp";
         auto backup_path = metadata_path_;
@@ -200,14 +208,13 @@ namespace photobridge {
             }
         }
 
-        std::error_code ec;
         const bool had_original = std::filesystem::exists(metadata_path_);
         if(had_original){
             std::filesystem::remove(backup_path, ec);
             ec.clear();
             std::filesystem::rename(metadata_path_, backup_path, ec);
             if(ec){
-                std::filesystem::remove(tmp_path);
+                std::filesystem::remove(tmp_path, ec);
                 return false;
             }
         }
@@ -215,7 +222,7 @@ namespace photobridge {
         ec.clear();
         std::filesystem::rename(tmp_path, metadata_path_, ec);
         if(ec){
-            std::filesystem::remove(tmp_path);
+            std::filesystem::remove(tmp_path, ec);
             if(had_original){
                 std::error_code restore_ec;
                 std::filesystem::rename(backup_path, metadata_path_, restore_ec);
@@ -223,7 +230,7 @@ namespace photobridge {
             return false;
         }
         if(had_original){
-            std::filesystem::remove(backup_path);
+            std::filesystem::remove(backup_path, ec);
         }
         return true;
     }
