@@ -57,6 +57,10 @@ data/
 └── shards/         # local shard / replica data
 ```
 
+## Screenshots
+
+![PhotoBridge web console](assets/web-console.png)
+
 ## Build
 
 ### Windows
@@ -198,12 +202,46 @@ Most mutating APIs require `token=<PHOTO_BRIDGE_TOKEN>`.
 
 ## Testing
 
-Start the service first, then run:
+Start the service first, then run the smoke test:
 
 ```powershell
 cd D:\PhotoBridge
 $env:PHOTO_BRIDGE_TOKEN="change-me"
 .\scripts\smoke_test.ps1
+```
+
+On Windows, run the smoke test with PowerShell 7 (`pwsh`). Windows PowerShell 5.1
+has a `ConvertFrom-Json` bug that mis-parses JSON arrays and breaks the node checks:
+
+```powershell
+pwsh -NoProfile -File .\scripts\smoke_test.ps1 -Token change-me
+```
+
+The smoke test exercises the full path: health check, storage-node
+availability, replica read fallback / write quorum, replica audit and repair,
+resumable chunk upload (including conflict, corruption, and resume cases),
+file delete, and metadata audit/repair/compaction.
+
+Passing result:
+
+![Smoke test passed](assets/smoke-test-passed.png)
+
+A trimmed run log looks like this:
+
+```text
+[1/26] health check
+[node] verify storage node availability API
+[node] verify replica read fallback when one node is unavailable
+[node] verify write quorum fails when a placement node is unavailable
+[node] verify replica audit and repair for a missing object replica
+...
+[18/26] complete chunk upload
+[19/26] verify chunk upload is indexed and clean it through API
+[22/26] delete file and verify it disappears from list
+[25/26] run automatic repair and verify MissingFile is gone
+[26/26] compact metadata log
+
+Smoke test passed.
 ```
 
 Run upload benchmarks:
@@ -216,6 +254,16 @@ Run upload benchmarks:
   -ChunkSizeMB 1,2,4
 ```
 
+To observe per-request performance, start the service with `PHOTO_BRIDGE_PERF=1`.
+It logs `[perf] uploads.init/chunk/status/complete elapsed_ms=<n>` to stdout;
+it is disabled by default.
+
+```powershell
+$env:PHOTO_BRIDGE_TOKEN="change-me"
+$env:PHOTO_BRIDGE_PERF="1"
+.\build\PhotoBridge.exe
+```
+
 ## Configuration
 
 The service currently uses environment variables and local runtime directories.
@@ -223,6 +271,7 @@ The service currently uses environment variables and local runtime directories.
 | Name | Description |
 | --- | --- |
 | `PHOTO_BRIDGE_TOKEN` | Shared token required by protected APIs |
+| `PHOTO_BRIDGE_PERF` | Set to `1` to log per-request `elapsed_ms` to stdout (default: off) |
 
 Do not commit runtime data or private config files.
 

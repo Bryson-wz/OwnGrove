@@ -57,6 +57,10 @@ data/
 └── shards/         # 本地 shard / replica 数据
 ```
 
+## 界面截图
+
+![PhotoBridge 前端控制台](assets/web-console.png)
+
 ## 构建
 
 ### Windows
@@ -198,12 +202,45 @@ curl -X POST "http://127.0.0.1:8080/api/uploads/abort?token=change-me&session_id
 
 ## 测试
 
-先启动服务，再运行：
+先启动服务，再运行冒烟测试：
 
 ```powershell
 cd D:\PhotoBridge
 $env:PHOTO_BRIDGE_TOKEN="change-me"
 .\scripts\smoke_test.ps1
+```
+
+在 Windows 上请用 PowerShell 7（`pwsh`）运行冒烟测试。Windows PowerShell 5.1
+的 `ConvertFrom-Json` 存在解析 JSON 数组的 bug，会导致节点相关检查失败：
+
+```powershell
+pwsh -NoProfile -File .\scripts\smoke_test.ps1 -Token change-me
+```
+
+冒烟测试覆盖完整链路：健康检查、存储节点可用性、副本读回退 / 写多数派、
+副本审计与修复、断点续传分片上传（含冲突、损坏、续传场景）、文件删除，
+以及元数据审计 / 修复 / 压缩。
+
+通过结果：
+
+![冒烟测试通过](assets/smoke-test-passed.png)
+
+精简后的运行日志如下：
+
+```text
+[1/26] health check
+[node] verify storage node availability API
+[node] verify replica read fallback when one node is unavailable
+[node] verify write quorum fails when a placement node is unavailable
+[node] verify replica audit and repair for a missing object replica
+...
+[18/26] complete chunk upload
+[19/26] verify chunk upload is indexed and clean it through API
+[22/26] delete file and verify it disappears from list
+[25/26] run automatic repair and verify MissingFile is gone
+[26/26] compact metadata log
+
+Smoke test passed.
 ```
 
 运行上传 benchmark：
@@ -216,6 +253,16 @@ $env:PHOTO_BRIDGE_TOKEN="change-me"
   -ChunkSizeMB 1,2,4
 ```
 
+如果要观察单次请求的性能，可用 `PHOTO_BRIDGE_PERF=1` 启动服务。
+开启后会向 stdout 输出 `[perf] uploads.init/chunk/status/complete elapsed_ms=<n>`，
+默认关闭。
+
+```powershell
+$env:PHOTO_BRIDGE_TOKEN="change-me"
+$env:PHOTO_BRIDGE_PERF="1"
+.\build\PhotoBridge.exe
+```
+
 ## 配置
 
 当前主要通过环境变量和本地运行时目录配置。
@@ -223,6 +270,7 @@ $env:PHOTO_BRIDGE_TOKEN="change-me"
 | 名称 | 说明 |
 | --- | --- |
 | `PHOTO_BRIDGE_TOKEN` | 受保护 API 使用的共享 token |
+| `PHOTO_BRIDGE_PERF` | 设为 `1` 时向 stdout 输出单次请求的 `elapsed_ms`（默认关闭） |
 
 不要提交运行时数据、真实 token 或私有配置文件。
 

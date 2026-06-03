@@ -12,12 +12,21 @@
 #include <sstream>
 #include <string>
 #include <chrono>
+#include <cstdlib>
 #include <ctime>
 #include <iomanip>
 #include <vector>
 
 
 namespace{
+    bool isPerfLoggingEnabled() {
+        static const bool enabled = [] {
+            const char* flag = std::getenv("PHOTO_BRIDGE_PERF");
+            return flag != nullptr && std::string(flag) == "1";
+        }();
+        return enabled;
+    }
+
     class ScopedTimer {
         public:
             explicit ScopedTimer(std::string name)
@@ -25,6 +34,9 @@ namespace{
                   start_(std::chrono::steady_clock::now()) {}
         
             ~ScopedTimer() {
+                if (!isPerfLoggingEnabled()) {
+                    return;
+                }
                 const auto end = std::chrono::steady_clock::now();
                 const auto elapsed_ms =
                     std::chrono::duration_cast<std::chrono::milliseconds>(end - start_).count();

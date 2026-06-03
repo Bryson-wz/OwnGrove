@@ -559,6 +559,12 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
+        .file-item-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-shrink: 0;
+        }
+
         .file-item-action {
             font-size: 0.75rem;
             font-weight: 600;
@@ -567,6 +573,9 @@
             padding: 0.4rem 0.8rem;
             border-radius: 6px;
             border: 1px solid rgba(139, 92, 246, 0.2);
+            background: transparent;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
             transition: all 0.25s ease;
             white-space: nowrap;
         }
@@ -574,6 +583,127 @@
         .file-item-action:hover {
             background: rgba(139, 92, 246, 0.1);
             border-color: var(--accent-start);
+        }
+
+        .file-item-action.danger {
+            color: var(--error);
+            border-color: rgba(239, 68, 68, 0.25);
+        }
+
+        .file-item-action.danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: var(--error);
+        }
+
+        /* Storage Diagnostics */
+        .diag-card {
+            margin-top: 2rem;
+        }
+
+        .diag-section + .diag-section {
+            margin-top: 1.8rem;
+            padding-top: 1.8rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .diag-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .node-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+
+        .node-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.9rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .node-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .node-dot.up {
+            background: var(--success);
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
+        }
+
+        .node-dot.down {
+            background: var(--error);
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+        }
+
+        .diag-query {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .diag-input {
+            flex: 1;
+            min-width: 180px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 0.6rem 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .diag-input:focus {
+            border-color: var(--accent-start);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        .diag-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .diag-output {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 1rem 1.2rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 280px;
+            overflow-y: auto;
+            margin: 0;
+        }
+
+        .diag-output:empty {
+            display: none;
+        }
+
+        .diag-output.error {
+            color: var(--error);
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.15);
         }
 
         .empty-state {
@@ -717,9 +847,33 @@
             </section>
         </div>
 
+        <section class="card diag-card">
+            <div class="card-header">
+                <span class="card-title">Storage Diagnostics</span>
+                <button id="btn-nodes-refresh" class="btn-refresh" title="Refresh node status">↻</button>
+            </div>
+
+            <div class="diag-section">
+                <div class="diag-label">Nodes</div>
+                <div class="node-list" id="node-list">
+                    <div class="empty-state">Enter token and refresh to view node status.</div>
+                </div>
+            </div>
+
+            <div class="diag-section">
+                <div class="diag-label">Object Inspector</div>
+                <div class="diag-query">
+                    <input type="text" id="object-key" class="diag-input" placeholder="Object key (e.g. uploads_tmp/upload_<session_id>/chunks/chunk_0.part)">
+                    <button id="btn-placement" class="btn">Placement</button>
+                    <button id="btn-audit" class="btn">Replica Audit</button>
+                </div>
+                <pre class="diag-output" id="diag-output"></pre>
+            </div>
+        </section>
+
         <footer class="footer">
-            <span>PhotoBridge v2.3</span>
-            <span>Chunked Upload Protocol</span>
+            <span>PhotoBridge v3</span>
+            <span>Storage Console</span>
         </footer>
     </div>
 
@@ -753,7 +907,13 @@
             chunkGrid: document.getElementById('chunk-grid'),
             fileList: document.getElementById('file-list'),
             btnRefresh: document.getElementById('btn-refresh'),
-            statusMessage: document.getElementById('status-message')
+            statusMessage: document.getElementById('status-message'),
+            nodeList: document.getElementById('node-list'),
+            btnNodesRefresh: document.getElementById('btn-nodes-refresh'),
+            objectKey: document.getElementById('object-key'),
+            btnPlacement: document.getElementById('btn-placement'),
+            btnAudit: document.getElementById('btn-audit'),
+            diagOutput: document.getElementById('diag-output')
         };
 
         const savedToken = localStorage.getItem("photobridge-token");
@@ -1239,14 +1399,25 @@
                     info.appendChild(nameEl);
                     info.appendChild(sizeEl);
 
+                    const actions = document.createElement('div');
+                    actions.className = 'file-item-actions';
+
                     const link = document.createElement('a');
                     link.className = 'file-item-action';
                     link.href = `/api/files/${encodeURIComponent(file.name)}/download?${params.toString()}`;
                     link.download = '';
                     link.textContent = 'Download';
 
+                    const delBtn = document.createElement('button');
+                    delBtn.className = 'file-item-action danger';
+                    delBtn.textContent = 'Delete';
+                    delBtn.addEventListener('click', () => deleteFile(file.name, delBtn));
+
+                    actions.appendChild(link);
+                    actions.appendChild(delBtn);
+
                     item.appendChild(info);
-                    item.appendChild(link);
+                    item.appendChild(actions);
                     UI.fileList.appendChild(item);
                 });
 
@@ -1262,8 +1433,121 @@
             }
         }
 
+        async function deleteFile(filename, btn) {
+            if (!getToken()) {
+                setStatus('Authorization token required.', 'error');
+                return;
+            }
+            if (!confirm(`Delete "${filename}"? This cannot be undone.`)) return;
+
+            const original = btn ? btn.textContent : '';
+            if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+            try {
+                const params = new URLSearchParams({ token: getToken(), filename });
+                const res = await fetch(`/api/files/delete?${params.toString()}`, {
+                    method: 'POST',
+                    cache: 'no-store'
+                });
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(text || `HTTP ${res.status}`);
+                }
+                await refreshFiles();
+            } catch (err) {
+                if (btn) { btn.disabled = false; btn.textContent = original; }
+                setStatus(`Delete failed: ${err.message}`, 'error');
+            }
+        }
+
+        // Storage Diagnostics
+        async function refreshNodes() {
+            if (!getToken()) {
+                UI.nodeList.replaceChildren();
+                const msg = document.createElement('div');
+                msg.className = 'empty-state';
+                msg.textContent = 'Authorization token required.';
+                UI.nodeList.appendChild(msg);
+                return;
+            }
+
+            UI.btnNodesRefresh.style.opacity = '0.4';
+            try {
+                const params = new URLSearchParams({ token: getToken(), _t: Date.now() });
+                const nodes = await requestJson(`/api/storage/nodes?${params.toString()}`);
+
+                UI.nodeList.replaceChildren();
+                if (!nodes.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'empty-state';
+                    empty.textContent = 'No storage nodes registered.';
+                    UI.nodeList.appendChild(empty);
+                    return;
+                }
+
+                nodes.forEach(node => {
+                    const chip = document.createElement('div');
+                    chip.className = 'node-chip';
+
+                    const dot = document.createElement('span');
+                    dot.className = 'node-dot ' + (node.available ? 'up' : 'down');
+
+                    const label = document.createElement('span');
+                    label.textContent = `${node.id} · ${node.available ? 'up' : 'down'}`;
+
+                    chip.appendChild(dot);
+                    chip.appendChild(label);
+                    UI.nodeList.appendChild(chip);
+                });
+            } catch (err) {
+                UI.nodeList.replaceChildren();
+                const errMsg = document.createElement('div');
+                errMsg.className = 'empty-state';
+                errMsg.style.color = 'var(--error)';
+                errMsg.textContent = err.message;
+                UI.nodeList.appendChild(errMsg);
+            } finally {
+                UI.btnNodesRefresh.style.opacity = '1';
+            }
+        }
+
+        function setDiagOutput(data, isError = false) {
+            UI.diagOutput.className = 'diag-output' + (isError ? ' error' : '');
+            UI.diagOutput.textContent = typeof data === 'string'
+                ? data
+                : JSON.stringify(data, null, 2);
+        }
+
+        async function queryDiagnostic(endpoint) {
+            if (!getToken()) {
+                setDiagOutput('Authorization token required.', true);
+                return;
+            }
+            const key = UI.objectKey.value.trim();
+            if (!key) {
+                setDiagOutput('Object key is required.', true);
+                return;
+            }
+            setDiagOutput('Loading...');
+            try {
+                const params = new URLSearchParams({ token: getToken(), key, _t: Date.now() });
+                const data = await requestJson(`${endpoint}?${params.toString()}`);
+                setDiagOutput(data);
+            } catch (err) {
+                setDiagOutput(err.message, true);
+            }
+        }
+
+        UI.btnNodesRefresh.addEventListener('click', refreshNodes);
+        UI.btnPlacement.addEventListener('click', () => queryDiagnostic('/api/storage/placement'));
+        UI.btnAudit.addEventListener('click', () => queryDiagnostic('/api/storage/replicas/audit'));
+        UI.objectKey.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') queryDiagnostic('/api/storage/placement');
+        });
+
         if (getToken()) {
             refreshFiles();
+            refreshNodes();
         }
     </script>
 </body>

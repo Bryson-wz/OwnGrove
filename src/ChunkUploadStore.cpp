@@ -119,7 +119,7 @@ namespace photobridge {
         if(!isSafeFilename(filename)){
             return InitSessionResponse{InitResult::InvalidFilename, ChunkUploadSession{}};
         }
-        if(total_size == 0 || chunk_size == 0 || chunk_size > total_size){
+        if(total_size == 0 || chunk_size == 0){
             return InitSessionResponse{InitResult::InvalidSize, ChunkUploadSession{}};
         }
         const auto session_id = generateSessionId();
