@@ -296,4 +296,4 @@ data/                  Runtime data, ignored by Git
 
 ## License
 
-No license has been selected yet.
+PhotoBridge is licensed under the [MIT License](LICENSE).

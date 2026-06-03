@@ -295,4 +295,4 @@ data/                  运行时数据，Git 忽略
 
 ## License
 
-暂未选择开源许可证。
+PhotoBridge 使用 [MIT License](LICENSE) 开源。
