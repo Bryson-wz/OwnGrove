@@ -16,4 +16,7 @@ config/photobridge.toml
 /task_plan.md
 /findings.md
 /progress.md
+/CONTEXT.md
+/docs/storage-design.md
+/docs/performance.md
 /.preview/

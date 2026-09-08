@@ -296,4 +296,16 @@ data/                  运行时数据，Git 忽略
 
 ## License
 
-OwnGrove 使用 [MIT License](LICENSE) 开源。
+Copyright (c) 2026 Bryson-wz。
+
+除另有许可证声明的第三方材料外，OwnGrove 使用
+[GNU Affero General Public License 第 3 版（仅此版本）](LICENSE)（`AGPL-3.0-only`）开源。
+你可以依照该许可证使用、修改和再分发本项目。本项目不提供担保。
+
+分发二进制时，应按许可证要求提供对应源码。如果你修改 OwnGrove，并让用户通过网络
+与修改后的版本交互，应按第 13 条向这些用户显著提供免费获取实际运行版本对应源码的方式。
+部署修改版时，请把网页控制台的 Source 链接更新为自己的源码仓库或源码归档；
+仅链接上游仓库不能替代提供自己的修改。
+
+此前版本仍适用原有 MIT 条款，详见[许可历史](LICENSE_HISTORY.md)。
+第三方组件保留各自许可证，详见[第三方声明](THIRD_PARTY_NOTICES.md)。

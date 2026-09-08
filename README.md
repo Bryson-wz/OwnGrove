@@ -297,4 +297,17 @@ data/                  Runtime data, ignored by Git
 
 ## License
 
-OwnGrove is licensed under the [MIT License](LICENSE).
+Copyright (c) 2026 Bryson-wz.
+
+Except for third-party material carrying its own license, OwnGrove is licensed under the
+[GNU Affero General Public License, version 3 only](LICENSE) (`AGPL-3.0-only`).
+You may use, modify, and redistribute it under those terms. It is provided without warranty.
+
+When distributing binaries, provide the corresponding source as required by the license.
+If you modify OwnGrove and let users interact with that version over a network, prominently
+offer those users the corresponding source of your running version at no charge, as required
+by section 13. Update the web console's Source link to your source repository or archive
+when deploying a modified version; an upstream link alone does not provide your modifications.
+
+Earlier versions remain available under their original MIT terms; see [license history](LICENSE_HISTORY.md).
+Third-party components retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
