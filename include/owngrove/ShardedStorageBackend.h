@@ -1,6 +1,6 @@
 #pragma once
 
-#include "photobridge/StorageBackend.h"
+#include "owngrove/StorageBackend.h"
 
 #include <filesystem>
 #include <string>
@@ -9,7 +9,7 @@
 #include <utility>
 #include <string_view>
 
-namespace photobridge {
+namespace owngrove {
     class ShardedStorageBackend : public StorageBackend {
     public:
         explicit ShardedStorageBackend(std::vector<StorageBackend*> shards);

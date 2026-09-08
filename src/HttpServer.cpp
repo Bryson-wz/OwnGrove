@@ -1,10 +1,12 @@
-#include "photobridge/HttpServer.h"
-#include "photobridge/MetadataStore.h"
-#include "photobridge/FileStore.h"
-#include "photobridge/ChunkUploadStore.h"
-#include "photobridge/LocalStorageBackend.h"
-#include "photobridge/ReplicaStorageBackend.h"
-#include "photobridge/StorageNode.h"
+#include "owngrove/HttpServer.h"
+#include "owngrove/AppConfig.h"
+#include "owngrove/Version.h"
+#include "owngrove/MetadataStore.h"
+#include "owngrove/FileStore.h"
+#include "owngrove/ChunkUploadStore.h"
+#include "owngrove/LocalStorageBackend.h"
+#include "owngrove/ReplicaStorageBackend.h"
+#include "owngrove/StorageNode.h"
 
 #include "httplib.h"
 #include <iostream>
@@ -12,7 +14,6 @@
 #include <sstream>
 #include <string>
 #include <chrono>
-#include <cstdlib>
 #include <ctime>
 #include <iomanip>
 #include <vector>
@@ -21,8 +22,8 @@
 namespace{
     bool isPerfLoggingEnabled() {
         static const bool enabled = [] {
-            const char* flag = std::getenv("PHOTO_BRIDGE_PERF");
-            return flag != nullptr && std::string(flag) == "1";
+            const auto flag = owngrove::readCompatEnv("OWNGROVE_PERF", "PHOTO_BRIDGE_PERF");
+            return flag.has_value() && *flag == "1";
         }();
         return enabled;
     }
@@ -41,7 +42,7 @@ namespace{
                 const auto elapsed_ms =
                     std::chrono::duration_cast<std::chrono::milliseconds>(end - start_).count();
         
-                std::cout << "[perf] " << name_ << " elapsed_ms=" << elapsed_ms << "\n";
+                std::cout << "[perf] " << name_ << " elapsed_ms=" << elapsed_ms << std::endl;
             }
         
         private:
@@ -50,8 +51,10 @@ namespace{
         };
     
     std::string getTokenFromEnv(){
-        const char* token = std::getenv("PHOTO_BRIDGE_TOKEN");
-        return token ? token : "";
+        static const std::string token = [] {
+            return owngrove::readCompatEnv("OWNGROVE_TOKEN", "PHOTO_BRIDGE_TOKEN").value_or(std::string());
+        }();
+        return token;
     }
     bool isAuthorized(const httplib::Request& req, const std::string& expected_token){
         if(expected_token.empty()){
@@ -70,12 +73,12 @@ namespace{
         oss << std::put_time(std::gmtime(&time), "%Y-%m-%dT%H:%M:%SZ");
         return oss.str();
     }
-    const char* metadataIssueTypeToString(photobridge::MetadataIssueType type)
+    const char* metadataIssueTypeToString(owngrove::MetadataIssueType type)
     {
         switch (type) {
-            case photobridge::MetadataIssueType::MissingFile:
+            case owngrove::MetadataIssueType::MissingFile:
                 return "MissingFile";
-            case photobridge::MetadataIssueType::OrphanFile:
+            case owngrove::MetadataIssueType::OrphanFile:
                 return "OrphanFile";
         }
 
@@ -110,12 +113,13 @@ namespace{
     }
 
 }
-namespace photobridge {
+namespace owngrove {
 
 bool HttpServer::start(const char* host, int port)
 {
     httplib::Server server;
     const std::string expected_token = getTokenFromEnv();
+    isPerfLoggingEnabled();
     FileStore file_store("data/uploads");
     MetadataStore metadata_store("data/metadata/files.jsonl");
 
@@ -145,7 +149,14 @@ bool HttpServer::start(const char* host, int port)
 
         std::stringstream index_buffer;
         index_buffer << index_file.rdbuf();
-        res.set_content(index_buffer.str(), "text/html");
+        std::string html = index_buffer.str();
+        const std::string placeholder = "__OWNGROVE_VERSION__";
+        const std::string version = owngrove::kVersion;
+        for (std::size_t pos = 0; (pos = html.find(placeholder, pos)) != std::string::npos; ) {
+            html.replace(pos, placeholder.size(), version);
+            pos += version.size();
+        }
+        res.set_content(html, "text/html");
     });
 
     server.Get("/api/files", [&file_store, &metadata_store, expected_token](const httplib::Request& req, httplib::Response& res) {

@@ -1,5 +1,5 @@
 #pragma once
-#include "photobridge/FileMetadata.h"
+#include "owngrove/FileMetadata.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace photobridge {
+namespace owngrove {
     enum class MetadataIssueType {
         MissingFile,
         OrphanFile,
@@ -44,4 +44,4 @@ namespace photobridge {
             mutable std::mutex mutex_;
         };
 
-} // namespace photobridge
+} // namespace owngrove

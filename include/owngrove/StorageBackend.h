@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <vector>
 
-namespace photobridge {
+namespace owngrove {
     struct ReadObjectResult{
         bool ok = false;
         std::string data;

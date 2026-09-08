@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace photobridge {
+namespace owngrove {
 
 struct FileInfo {
     std::string name;
@@ -38,4 +38,4 @@ private:
     std::filesystem::path upload_dir_;
 };
 
-} // namespace photobridge
+} // namespace owngrove

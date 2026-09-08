@@ -1,13 +1,13 @@
 #pragma once
-#include "photobridge/StorageBackend.h"
-#include "photobridge/StorageNode.h"
+#include "owngrove/StorageBackend.h"
+#include "owngrove/StorageNode.h"
 
 #include <vector>
 #include <string>
 #include <cstdint>
 #include <utility>
 
-namespace photobridge {
+namespace owngrove {
     struct ReplicaAuditItem {
         std::string node_id;
         bool available = false;

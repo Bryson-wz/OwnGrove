@@ -1,6 +1,6 @@
 #pragma once
 
-#include "photobridge/StorageBackend.h"
+#include "owngrove/StorageBackend.h"
 
 #include <filesystem>
 #include <string>
@@ -8,7 +8,7 @@
 #include <vector>
 
 
-namespace photobridge {
+namespace owngrove {
     class LocalStorageBackend : public StorageBackend {
     public:
         explicit LocalStorageBackend(std::filesystem::path root_dir);

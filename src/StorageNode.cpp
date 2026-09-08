@@ -1,8 +1,8 @@
-#include "photobridge/StorageNode.h"
+#include "owngrove/StorageNode.h"
 
 #include <utility>
 
-namespace photobridge {
+namespace owngrove {
     StorageNode::StorageNode(std::string node_id, StorageBackend& storage_backend)
     : node_id_(std::move(node_id))
     , storage_backend_(storage_backend)

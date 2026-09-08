@@ -1,6 +1,6 @@
 param(
-    [string]$BaseUrl = "http://127.0.0.1:8080",
-    [string]$Token = $env:PHOTO_BRIDGE_TOKEN,
+    [string]$BaseUrl = $(if ($env:OWNGROVE_PORT) { "http://127.0.0.1:$($env:OWNGROVE_PORT)" } elseif ($env:PHOTO_BRIDGE_PORT) { "http://127.0.0.1:$($env:PHOTO_BRIDGE_PORT)" } else { "http://127.0.0.1:8787" }),
+    [string]$Token,
     [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [switch]$SkipCompact
 )
@@ -9,7 +9,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($Token)) {
-    throw "PHOTO_BRIDGE_TOKEN is not set. Pass -Token or set `$env:PHOTO_BRIDGE_TOKEN first."
+    if (-not [string]::IsNullOrWhiteSpace($env:OWNGROVE_TOKEN)) {
+        $Token = $env:OWNGROVE_TOKEN
+    } elseif (-not [string]::IsNullOrWhiteSpace($env:PHOTO_BRIDGE_TOKEN)) {
+        Write-Warning "PHOTO_BRIDGE_TOKEN is deprecated. Use OWNGROVE_TOKEN instead."
+        $Token = $env:PHOTO_BRIDGE_TOKEN
+    } else {
+        throw "OWNGROVE_TOKEN is not set. Pass -Token or set `$env:OWNGROVE_TOKEN first."
+    }
 }
 
 function New-ApiUrl {

@@ -1,4 +1,4 @@
-#include "photobridge/Checksum.h"
+#include "owngrove/Checksum.h"
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -14,7 +14,7 @@ namespace{
         return out.str();
     }
 }
-namespace photobridge {
+namespace owngrove {
     std::uint32_t crc32cStart(){
         return 0xFFFFFFFFu;
     }

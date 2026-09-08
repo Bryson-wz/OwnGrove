@@ -1,4 +1,4 @@
-#include "photobridge/LocalStorageBackend.h"
+#include "owngrove/LocalStorageBackend.h"
 
 #include <fstream>
 #include <sstream>
@@ -7,7 +7,7 @@
 #include <utility>
 #include <system_error>
 
-namespace photobridge {
+namespace owngrove {
     LocalStorageBackend::LocalStorageBackend(std::filesystem::path root_dir)
         : root_dir_(std::move(root_dir))
     {

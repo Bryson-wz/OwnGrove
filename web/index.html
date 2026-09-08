@@ -3,23 +3,23 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>PhotoBridge</title>
+    <title>OwnGrove Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
+            --bg-primary: #0d0f0d;
+            --bg-secondary: #151815;
             --bg-card: rgba(255, 255, 255, 0.03);
             --bg-card-hover: rgba(255, 255, 255, 0.06);
             --border-color: rgba(255, 255, 255, 0.08);
-            --border-glow: rgba(139, 92, 246, 0.3);
+            --border-glow: rgba(168, 195, 160, 0.3);
             --text-primary: #f0f0f5;
             --text-secondary: #8b8b9e;
             --text-muted: #5a5a6e;
-            --accent-start: #8b5cf6;
-            --accent-end: #06b6d4;
+            --accent-start: #a8c3a0;
+            --accent-end: #a8c3a0;
             --accent-gradient: linear-gradient(135deg, var(--accent-start), var(--accent-end));
             --success: #10b981;
             --error: #ef4444;
@@ -56,7 +56,7 @@
             left: -20%;
             width: 80%;
             height: 80%;
-            background: radial-gradient(ellipse, rgba(139, 92, 246, 0.08) 0%, transparent 60%);
+            background: radial-gradient(ellipse, rgba(168, 195, 160, 0.08) 0%, transparent 60%);
             pointer-events: none;
             z-index: 0;
         }
@@ -67,7 +67,7 @@
             right: -20%;
             width: 80%;
             height: 80%;
-            background: radial-gradient(ellipse, rgba(6, 182, 212, 0.06) 0%, transparent 60%);
+            background: radial-gradient(ellipse, rgba(168, 195, 160, 0.05) 0%, transparent 60%);
             pointer-events: none;
             z-index: 0;
         }
@@ -108,7 +108,7 @@
             align-items: center;
             justify-content: center;
             font-size: 1.2rem;
-            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+            box-shadow: 0 0 20px rgba(168, 195, 160, 0.3);
         }
 
         .logo-text {
@@ -140,7 +140,7 @@
 
         .token-input-wrap input:focus {
             border-color: var(--accent-start);
-            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+            box-shadow: 0 0 0 3px rgba(168, 195, 160, 0.1);
         }
 
         .token-input-wrap input::placeholder {
@@ -206,9 +206,9 @@
             font-weight: 500;
             padding: 0.3rem 0.7rem;
             border-radius: 20px;
-            background: rgba(139, 92, 246, 0.1);
+            background: rgba(168, 195, 160, 0.1);
             color: var(--accent-start);
-            border: 1px solid rgba(139, 92, 246, 0.2);
+            border: 1px solid rgba(168, 195, 160, 0.2);
         }
 
         /* Drop Area */
@@ -373,11 +373,11 @@
             background: var(--accent-gradient);
             border: none;
             color: #fff;
-            box-shadow: 0 2px 12px rgba(139, 92, 246, 0.3);
+            box-shadow: 0 2px 12px rgba(168, 195, 160, 0.3);
         }
 
         .btn-primary:hover {
-            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.5);
+            box-shadow: 0 4px 20px rgba(168, 195, 160, 0.5);
         }
 
         .btn-danger {
@@ -424,7 +424,7 @@
             width: 0%;
             border-radius: 4px;
             transition: width 0.3s ease;
-            box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+            box-shadow: 0 0 8px rgba(168, 195, 160, 0.4);
         }
 
         .chunk-grid {
@@ -450,7 +450,7 @@
         .chunk.uploading {
             background: var(--accent-start);
             animation: chunkPulse 1.2s ease infinite;
-            box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
+            box-shadow: 0 0 6px rgba(168, 195, 160, 0.5);
         }
 
         .chunk.error {
@@ -572,7 +572,7 @@
             text-decoration: none;
             padding: 0.4rem 0.8rem;
             border-radius: 6px;
-            border: 1px solid rgba(139, 92, 246, 0.2);
+            border: 1px solid rgba(168, 195, 160, 0.2);
             background: transparent;
             cursor: pointer;
             font-family: 'Inter', sans-serif;
@@ -581,7 +581,7 @@
         }
 
         .file-item-action:hover {
-            background: rgba(139, 92, 246, 0.1);
+            background: rgba(168, 195, 160, 0.1);
             border-color: var(--accent-start);
         }
 
@@ -673,7 +673,7 @@
 
         .diag-input:focus {
             border-color: var(--accent-start);
-            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+            box-shadow: 0 0 0 3px rgba(168, 195, 160, 0.1);
         }
 
         .diag-input::placeholder {
@@ -781,7 +781,7 @@
         <header class="header">
             <div class="logo">
                 <div class="logo-icon">⬡</div>
-                <span class="logo-text">PhotoBridge</span>
+                <span class="logo-text">OwnGrove</span>
             </div>
             <div class="token-input-wrap">
                 <input type="password" id="token" placeholder="Access Token" autocomplete="current-password">
@@ -872,7 +872,7 @@
         </section>
 
         <footer class="footer">
-            <span>PhotoBridge v3</span>
+            <span>OwnGrove Hub __OWNGROVE_VERSION__</span>
             <span>Storage Console</span>
         </footer>
     </div>
@@ -916,10 +916,21 @@
             diagOutput: document.getElementById('diag-output')
         };
 
-        const savedToken = localStorage.getItem("photobridge-token");
+        const TOKEN_STORAGE_KEY = 'owngrove-token';
+        const LEGACY_TOKEN_STORAGE_KEY = 'photobridge-token';
+
+        let savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+        if (savedToken === null) {
+            const legacyToken = localStorage.getItem(LEGACY_TOKEN_STORAGE_KEY);
+            if (legacyToken !== null) {
+                savedToken = legacyToken;
+                localStorage.setItem(TOKEN_STORAGE_KEY, legacyToken);
+                localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+            }
+        }
         if (savedToken) UI.token.value = savedToken;
         UI.token.addEventListener("input", () => {
-            localStorage.setItem("photobridge-token", UI.token.value.trim());
+            localStorage.setItem(TOKEN_STORAGE_KEY, UI.token.value.trim());
         });
 
         function getToken() { return UI.token.value.trim(); }
@@ -952,7 +963,21 @@
         }
 
         // localStorage session persistence
-        const SESSION_STORAGE_KEY = 'photobridge-upload-session';
+        const SESSION_STORAGE_KEY = 'owngrove-upload-session';
+        const LEGACY_SESSION_STORAGE_KEY = 'photobridge-upload-session';
+
+        function migrateSessionStorage() {
+            try {
+                if (localStorage.getItem(SESSION_STORAGE_KEY) === null) {
+                    const legacySession = localStorage.getItem(LEGACY_SESSION_STORAGE_KEY);
+                    if (legacySession !== null) {
+                        localStorage.setItem(SESSION_STORAGE_KEY, legacySession);
+                        localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+                    }
+                }
+            } catch (e) { /* quota exceeded or private mode */ }
+        }
+        migrateSessionStorage();
 
         function saveSession(file, sessionId) {
             try {
@@ -969,6 +994,7 @@
 
         function loadSession(file) {
             try {
+                migrateSessionStorage();
                 const raw = localStorage.getItem(SESSION_STORAGE_KEY);
                 if (!raw) return null;
                 const entry = JSON.parse(raw);
@@ -985,13 +1011,18 @@
         function clearSession(file) {
             try {
                 const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-                if (!raw) return;
+                if (!raw) {
+                    localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+                    return;
+                }
                 const entry = JSON.parse(raw);
                 if (file && entry.filename === file.name && entry.size === file.size) {
                     localStorage.removeItem(SESSION_STORAGE_KEY);
+                    localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
                 }
             } catch (e) {
                 localStorage.removeItem(SESSION_STORAGE_KEY);
+                localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
             }
         }
 

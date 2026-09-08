@@ -1,8 +1,8 @@
-# PhotoBridge
+# OwnGrove
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-PhotoBridge 是一个轻量级 C++ HTTP 存储服务，用于私有文件中转、断点续传和存储后端实验。
+OwnGrove 是一个轻量级 C++ HTTP 存储服务，用于私有文件中转、断点续传和存储后端实验。
 
 项目最初是一个浏览器文件上传/下载服务，目前已经扩展出 metadata replay、分片上传、CRC32C 校验、分片数据放置、多副本、节点可用性、placement 查询和副本修复等能力。
 
@@ -59,7 +59,7 @@ data/
 
 ## 界面截图
 
-![PhotoBridge 前端控制台](assets/web-console.png)
+![OwnGrove 前端控制台](assets/web-console.png)
 
 ## 构建
 
@@ -74,8 +74,8 @@ cmake --build build
 运行：
 
 ```powershell
-$env:PHOTO_BRIDGE_TOKEN="change-me"
-.\build\PhotoBridge.exe
+$env:OWNGROVE_TOKEN="change-me"
+.\build\owngrove-hub.exe
 ```
 
 ### Linux
@@ -90,11 +90,11 @@ cmake --build build
 运行：
 
 ```bash
-export PHOTO_BRIDGE_TOKEN="change-me"
-./build/PhotoBridge
+export OWNGROVE_TOKEN="change-me"
+./build/owngrove-hub
 ```
 
-服务默认监听 `0.0.0.0:8080`。
+服务默认监听 `0.0.0.0:8787`。
 
 长期运行时建议用 `systemd` 或 `supervisor` 等进程管理工具托管。正式 service 模板后续补充。
 
@@ -103,33 +103,33 @@ export PHOTO_BRIDGE_TOKEN="change-me"
 健康检查：
 
 ```bash
-curl "http://127.0.0.1:8080/health"
+curl "http://127.0.0.1:8787/health"
 ```
 
 上传文件：
 
 ```bash
 curl -X POST \
-  "http://127.0.0.1:8080/api/upload?token=change-me&filename=hello.txt" \
-  --data-binary "hello photobridge"
+  "http://127.0.0.1:8787/api/upload?token=change-me&filename=hello.txt" \
+  --data-binary "hello owngrove"
 ```
 
 查看文件列表：
 
 ```bash
-curl "http://127.0.0.1:8080/api/files?token=change-me"
+curl "http://127.0.0.1:8787/api/files?token=change-me"
 ```
 
 下载文件：
 
 ```bash
-curl -OJ "http://127.0.0.1:8080/api/files/hello.txt/download?token=change-me"
+curl -OJ "http://127.0.0.1:8787/api/files/hello.txt/download?token=change-me"
 ```
 
 删除文件：
 
 ```bash
-curl -X POST "http://127.0.0.1:8080/api/files/delete?token=change-me&filename=hello.txt"
+curl -X POST "http://127.0.0.1:8787/api/files/delete?token=change-me&filename=hello.txt"
 ```
 
 ## 断点续传
@@ -138,37 +138,37 @@ curl -X POST "http://127.0.0.1:8080/api/files/delete?token=change-me&filename=he
 
 ```bash
 curl -X POST \
-  "http://127.0.0.1:8080/api/uploads/init?token=change-me&filename=big.bin&size=11&chunk_size=6"
+  "http://127.0.0.1:8787/api/uploads/init?token=change-me&filename=big.bin&size=11&chunk_size=6"
 ```
 
 上传 chunk：
 
 ```bash
 curl -X POST \
-  "http://127.0.0.1:8080/api/uploads/chunk?token=change-me&session_id=<session_id>&index=0" \
+  "http://127.0.0.1:8787/api/uploads/chunk?token=change-me&session_id=<session_id>&index=0" \
   --data-binary "hello "
 
 curl -X POST \
-  "http://127.0.0.1:8080/api/uploads/chunk?token=change-me&session_id=<session_id>&index=1" \
+  "http://127.0.0.1:8787/api/uploads/chunk?token=change-me&session_id=<session_id>&index=1" \
   --data-binary "world"
 ```
 
 查询上传状态：
 
 ```bash
-curl "http://127.0.0.1:8080/api/uploads/status?token=change-me&session_id=<session_id>"
+curl "http://127.0.0.1:8787/api/uploads/status?token=change-me&session_id=<session_id>"
 ```
 
 完成上传：
 
 ```bash
-curl -X POST "http://127.0.0.1:8080/api/uploads/complete?token=change-me&session_id=<session_id>"
+curl -X POST "http://127.0.0.1:8787/api/uploads/complete?token=change-me&session_id=<session_id>"
 ```
 
 取消上传：
 
 ```bash
-curl -X POST "http://127.0.0.1:8080/api/uploads/abort?token=change-me&session_id=<session_id>"
+curl -X POST "http://127.0.0.1:8787/api/uploads/abort?token=change-me&session_id=<session_id>"
 ```
 
 ## API 概览
@@ -198,7 +198,7 @@ curl -X POST "http://127.0.0.1:8080/api/uploads/abort?token=change-me&session_id
 | `GET` | `/api/storage/replicas/audit` | 审计 object 副本 |
 | `POST` | `/api/storage/replicas/repair` | 修复缺失副本 |
 
-大多数写接口需要 `token=<PHOTO_BRIDGE_TOKEN>`。
+大多数写接口需要 `token=<OWNGROVE_TOKEN>`。
 
 ## 测试
 
@@ -206,7 +206,7 @@ curl -X POST "http://127.0.0.1:8080/api/uploads/abort?token=change-me&session_id
 
 ```powershell
 cd D:\PhotoBridge
-$env:PHOTO_BRIDGE_TOKEN="change-me"
+$env:OWNGROVE_TOKEN="change-me"
 .\scripts\smoke_test.ps1
 ```
 
@@ -247,20 +247,20 @@ Smoke test passed.
 
 ```powershell
 .\scripts\benchmark_upload.ps1 `
-  -BaseUrl "http://127.0.0.1:8080" `
+  -BaseUrl "http://127.0.0.1:8787" `
   -Token "change-me" `
   -FileSizeMB 16,64 `
   -ChunkSizeMB 1,2,4
 ```
 
-如果要观察单次请求的性能，可用 `PHOTO_BRIDGE_PERF=1` 启动服务。
+如果要观察单次请求的性能，可用 `OWNGROVE_PERF=1` 启动服务。
 开启后会向 stdout 输出 `[perf] uploads.init/chunk/status/complete elapsed_ms=<n>`，
 默认关闭。
 
 ```powershell
-$env:PHOTO_BRIDGE_TOKEN="change-me"
-$env:PHOTO_BRIDGE_PERF="1"
-.\build\PhotoBridge.exe
+$env:OWNGROVE_TOKEN="change-me"
+$env:OWNGROVE_PERF="1"
+.\build\owngrove-hub.exe
 ```
 
 ## 配置
@@ -269,15 +269,16 @@ $env:PHOTO_BRIDGE_PERF="1"
 
 | 名称 | 说明 |
 | --- | --- |
-| `PHOTO_BRIDGE_TOKEN` | 受保护 API 使用的共享 token |
-| `PHOTO_BRIDGE_PERF` | 设为 `1` 时向 stdout 输出单次请求的 `elapsed_ms`（默认关闭） |
+| `OWNGROVE_TOKEN` | 受保护 API 使用的共享 token |
+| `OWNGROVE_PORT` | 监听端口，整数 1–65535（默认 8787） |
+| `OWNGROVE_PERF` | 设为 `1` 时向 stdout 输出单次请求的 `elapsed_ms`（默认关闭） |
 
 不要提交运行时数据、真实 token 或私有配置文件。
 
 ## 仓库结构
 
 ```text
-include/photobridge/   公共头文件
+include/owngrove/      公共头文件
 src/                   C++ 实现
 web/                   浏览器上传页面
 scripts/               smoke / benchmark 脚本
@@ -295,4 +296,4 @@ data/                  运行时数据，Git 忽略
 
 ## License
 
-PhotoBridge 使用 [MIT License](LICENSE) 开源。
+OwnGrove 使用 [MIT License](LICENSE) 开源。

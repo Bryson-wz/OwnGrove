@@ -1,6 +1,6 @@
 #pragma once
 
-namespace photobridge {
+namespace owngrove {
 class HttpServer{
 public:
     bool start(const char* host,int port);

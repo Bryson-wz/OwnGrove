@@ -1,12 +1,12 @@
 #pragma once
 
-#include "photobridge/StorageBackend.h"
+#include "owngrove/StorageBackend.h"
 
 #include <string>
 #include <vector>
 #include <atomic>
 
-namespace photobridge {
+namespace owngrove {
     class StorageNode {
     public:
         StorageNode(std::string node_id, StorageBackend& storage_backend);

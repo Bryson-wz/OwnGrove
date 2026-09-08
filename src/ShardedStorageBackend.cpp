@@ -1,4 +1,4 @@
-#include "photobridge/ShardedStorageBackend.h"
+#include "owngrove/ShardedStorageBackend.h"
 
 #include <cstdint>
 #include <stdexcept>
@@ -17,7 +17,7 @@ namespace {
 
 }
 
-namespace photobridge {
+namespace owngrove {
 
     ShardedStorageBackend::ShardedStorageBackend(std::vector<StorageBackend*> shards)
         : shards_(std::move(shards))

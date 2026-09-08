@@ -7,7 +7,7 @@
 #include <filesystem>
 
 
-namespace photobridge {
+namespace owngrove {
     std::string crc32cHex(std::string_view data);
     std::uint32_t crc32cStart();
     std::uint32_t crc32cUpdate(std::uint32_t crc, const char* data, std::size_t size);

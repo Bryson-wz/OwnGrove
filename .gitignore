@@ -4,8 +4,8 @@ data/logs/
 data/metadata/
 data/uploads/
 data/uploads_tmp/
-docs/*.md
 docs/performance-results.jsonl
+config/owngrove.toml
 config/photobridge.toml
 *.exe
 *.obj
@@ -13,3 +13,7 @@ config/photobridge.toml
 *.log
 .DS_Store
 .vscode/
+/task_plan.md
+/findings.md
+/progress.md
+/.preview/

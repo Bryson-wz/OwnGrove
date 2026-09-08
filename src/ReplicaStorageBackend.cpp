@@ -1,4 +1,4 @@
-#include "photobridge/ReplicaStorageBackend.h"
+#include "owngrove/ReplicaStorageBackend.h"
 
 #include <cstdint>
 #include <stdexcept>
@@ -17,7 +17,7 @@ namespace {
     }
     
 }
-namespace photobridge {
+namespace owngrove {
     ReplicaStorageBackend::ReplicaStorageBackend(std::vector<StorageNode*> nodes, std::size_t replica_count, std::size_t write_quorum)
     {
         if(nodes.empty()){

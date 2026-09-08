@@ -1,8 +1,8 @@
-# PhotoBridge
+# OwnGrove
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-PhotoBridge is a lightweight C++ HTTP storage service for private file transfer, resumable uploads, and storage-backend experiments.
+OwnGrove is a lightweight C++ HTTP storage service for private file transfer, resumable uploads, and storage-backend experiments.
 
 It started as a small browser-based file bridge, then evolved into a compact backend project with metadata replay, chunk upload, CRC32C verification, sharding, replication, node availability, placement inspection, and replica repair.
 
@@ -59,7 +59,7 @@ data/
 
 ## Screenshots
 
-![PhotoBridge web console](assets/web-console.png)
+![OwnGrove web console](assets/web-console.png)
 
 ## Build
 
@@ -74,8 +74,8 @@ cmake --build build
 Run:
 
 ```powershell
-$env:PHOTO_BRIDGE_TOKEN="change-me"
-.\build\PhotoBridge.exe
+$env:OWNGROVE_TOKEN="change-me"
+.\build\owngrove-hub.exe
 ```
 
 ### Linux
@@ -90,11 +90,11 @@ cmake --build build
 Run:
 
 ```bash
-export PHOTO_BRIDGE_TOKEN="change-me"
-./build/PhotoBridge
+export OWNGROVE_TOKEN="change-me"
+./build/owngrove-hub
 ```
 
-The service listens on `0.0.0.0:8080` by default.
+The service listens on `0.0.0.0:8787` by default.
 
 For long-running Linux deployment, use a process manager such as `systemd` or `supervisor`.
 
@@ -103,33 +103,33 @@ For long-running Linux deployment, use a process manager such as `systemd` or `s
 Health check:
 
 ```bash
-curl "http://127.0.0.1:8080/health"
+curl "http://127.0.0.1:8787/health"
 ```
 
 Upload a file:
 
 ```bash
 curl -X POST \
-  "http://127.0.0.1:8080/api/upload?token=change-me&filename=hello.txt" \
-  --data-binary "hello photobridge"
+  "http://127.0.0.1:8787/api/upload?token=change-me&filename=hello.txt" \
+  --data-binary "hello owngrove"
 ```
 
 List files:
 
 ```bash
-curl "http://127.0.0.1:8080/api/files?token=change-me"
+curl "http://127.0.0.1:8787/api/files?token=change-me"
 ```
 
 Download a file:
 
 ```bash
-curl -OJ "http://127.0.0.1:8080/api/files/hello.txt/download?token=change-me"
+curl -OJ "http://127.0.0.1:8787/api/files/hello.txt/download?token=change-me"
 ```
 
 Delete a file:
 
 ```bash
-curl -X POST "http://127.0.0.1:8080/api/files/delete?token=change-me&filename=hello.txt"
+curl -X POST "http://127.0.0.1:8787/api/files/delete?token=change-me&filename=hello.txt"
 ```
 
 ## Resumable Upload
@@ -138,37 +138,37 @@ Initialize an upload session:
 
 ```bash
 curl -X POST \
-  "http://127.0.0.1:8080/api/uploads/init?token=change-me&filename=big.bin&size=11&chunk_size=6"
+  "http://127.0.0.1:8787/api/uploads/init?token=change-me&filename=big.bin&size=11&chunk_size=6"
 ```
 
 Upload chunks:
 
 ```bash
 curl -X POST \
-  "http://127.0.0.1:8080/api/uploads/chunk?token=change-me&session_id=<session_id>&index=0" \
+  "http://127.0.0.1:8787/api/uploads/chunk?token=change-me&session_id=<session_id>&index=0" \
   --data-binary "hello "
 
 curl -X POST \
-  "http://127.0.0.1:8080/api/uploads/chunk?token=change-me&session_id=<session_id>&index=1" \
+  "http://127.0.0.1:8787/api/uploads/chunk?token=change-me&session_id=<session_id>&index=1" \
   --data-binary "world"
 ```
 
 Check upload status:
 
 ```bash
-curl "http://127.0.0.1:8080/api/uploads/status?token=change-me&session_id=<session_id>"
+curl "http://127.0.0.1:8787/api/uploads/status?token=change-me&session_id=<session_id>"
 ```
 
 Complete upload:
 
 ```bash
-curl -X POST "http://127.0.0.1:8080/api/uploads/complete?token=change-me&session_id=<session_id>"
+curl -X POST "http://127.0.0.1:8787/api/uploads/complete?token=change-me&session_id=<session_id>"
 ```
 
 Abort upload:
 
 ```bash
-curl -X POST "http://127.0.0.1:8080/api/uploads/abort?token=change-me&session_id=<session_id>"
+curl -X POST "http://127.0.0.1:8787/api/uploads/abort?token=change-me&session_id=<session_id>"
 ```
 
 ## API Overview
@@ -198,7 +198,7 @@ curl -X POST "http://127.0.0.1:8080/api/uploads/abort?token=change-me&session_id
 | `GET` | `/api/storage/replicas/audit` | Audit object replicas |
 | `POST` | `/api/storage/replicas/repair` | Repair missing replicas |
 
-Most mutating APIs require `token=<PHOTO_BRIDGE_TOKEN>`.
+Most mutating APIs require `token=<OWNGROVE_TOKEN>`.
 
 ## Testing
 
@@ -206,7 +206,7 @@ Start the service first, then run the smoke test:
 
 ```powershell
 cd D:\PhotoBridge
-$env:PHOTO_BRIDGE_TOKEN="change-me"
+$env:OWNGROVE_TOKEN="change-me"
 .\scripts\smoke_test.ps1
 ```
 
@@ -248,20 +248,20 @@ Run upload benchmarks:
 
 ```powershell
 .\scripts\benchmark_upload.ps1 `
-  -BaseUrl "http://127.0.0.1:8080" `
+  -BaseUrl "http://127.0.0.1:8787" `
   -Token "change-me" `
   -FileSizeMB 16,64 `
   -ChunkSizeMB 1,2,4
 ```
 
-To observe per-request performance, start the service with `PHOTO_BRIDGE_PERF=1`.
+To observe per-request performance, start the service with `OWNGROVE_PERF=1`.
 It logs `[perf] uploads.init/chunk/status/complete elapsed_ms=<n>` to stdout;
 it is disabled by default.
 
 ```powershell
-$env:PHOTO_BRIDGE_TOKEN="change-me"
-$env:PHOTO_BRIDGE_PERF="1"
-.\build\PhotoBridge.exe
+$env:OWNGROVE_TOKEN="change-me"
+$env:OWNGROVE_PERF="1"
+.\build\owngrove-hub.exe
 ```
 
 ## Configuration
@@ -270,15 +270,16 @@ The service currently uses environment variables and local runtime directories.
 
 | Name | Description |
 | --- | --- |
-| `PHOTO_BRIDGE_TOKEN` | Shared token required by protected APIs |
-| `PHOTO_BRIDGE_PERF` | Set to `1` to log per-request `elapsed_ms` to stdout (default: off) |
+| `OWNGROVE_TOKEN` | Shared token required by protected APIs |
+| `OWNGROVE_PORT` | Listen port, integer 1–65535 (default: 8787) |
+| `OWNGROVE_PERF` | Set to `1` to log per-request `elapsed_ms` to stdout (default: off) |
 
 Do not commit runtime data or private config files.
 
 ## Repository Layout
 
 ```text
-include/photobridge/   Public headers
+include/owngrove/      Public headers
 src/                   C++ implementation
 web/                   Browser upload page
 scripts/               Smoke and benchmark scripts
@@ -296,4 +297,4 @@ data/                  Runtime data, ignored by Git
 
 ## License
 
-PhotoBridge is licensed under the [MIT License](LICENSE).
+OwnGrove is licensed under the [MIT License](LICENSE).

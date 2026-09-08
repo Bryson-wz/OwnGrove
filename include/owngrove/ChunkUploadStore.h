@@ -1,6 +1,6 @@
 #pragma once
 
-#include "photobridge/StorageBackend.h"
+#include "owngrove/StorageBackend.h"
 
 #include <filesystem>
 #include <string>
@@ -8,7 +8,7 @@
 #include <mutex>
 #include <vector>
 
-namespace photobridge {
+namespace owngrove {
     struct ChunkUploadSession{
         std::string session_id;
         std::string filename;

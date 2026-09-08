@@ -1,4 +1,4 @@
-#include "photobridge/MetadataStore.h"
+#include "owngrove/MetadataStore.h"
 
 #include <fstream>
 #include <sstream>
@@ -62,7 +62,7 @@ namespace{
         return static_cast<std::uint64_t>(std::stoull(value));
     }
 
-    bool writeMetadataRecord(std::ostream& file, const photobridge::FileMetadata& metadata){
+    bool writeMetadataRecord(std::ostream& file, const owngrove::FileMetadata& metadata){
         file << "{"
         << "\"schema_version\":" << metadata.schemaVersion << ","
         << "\"op\":\"" << escapeJson(metadata.op) << "\","
@@ -76,7 +76,7 @@ namespace{
         return file.good();
     }
 }
-namespace photobridge {
+namespace owngrove {
     bool MetadataStore::appendStatusChange(
         const std::string& filename,
         const std::string& op,
@@ -280,4 +280,4 @@ namespace photobridge {
         }
         return result;
     }
-} // namespace photobridge
+} // namespace owngrove

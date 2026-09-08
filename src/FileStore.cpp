@@ -1,8 +1,8 @@
-#include "photobridge/FileStore.h"
+#include "owngrove/FileStore.h"
 
 #include <utility>
 
-namespace photobridge {
+namespace owngrove {
 
 FileStore::FileStore(std::filesystem::path upload_dir)
     : upload_dir_(std::move(upload_dir))
@@ -84,4 +84,4 @@ std::vector<FileInfo> FileStore::listFiles() const
         return DeleteResult::Success;
     }
         
-} // namespace photobridge
+} // namespace owngrove

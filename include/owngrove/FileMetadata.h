@@ -2,7 +2,7 @@
 
 #include <string>
 #include <cstdint>
-namespace photobridge {
+namespace owngrove {
 
 struct FileMetadata {
     int schemaVersion;
@@ -14,4 +14,4 @@ struct FileMetadata {
     std::string status;
 };
 
-} // namespace photobridge
+} // namespace owngrove

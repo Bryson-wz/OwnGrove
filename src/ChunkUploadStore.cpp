@@ -1,7 +1,7 @@
-#include "photobridge/ChunkUploadStore.h"
-#include "photobridge/Checksum.h"
-#include "photobridge/StorageBackend.h"
-#include "photobridge/LocalStorageBackend.h"
+#include "owngrove/ChunkUploadStore.h"
+#include "owngrove/Checksum.h"
+#include "owngrove/StorageBackend.h"
+#include "owngrove/LocalStorageBackend.h"
 
 #include <fstream>
 #include <chrono>
@@ -108,7 +108,7 @@ namespace{
         return "uploads_tmp/upload_" + session_id + "/";
     }
 }
-namespace photobridge {
+namespace owngrove {
     ChunkUploadStore::ChunkUploadStore(std::filesystem::path temp_dir,std::filesystem::path upload_dir,StorageBackend& storage_backend)
         : temp_dir_(std::move(temp_dir))
         , upload_dir_(std::move(upload_dir))

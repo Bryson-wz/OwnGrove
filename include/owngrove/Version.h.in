@@ -1,0 +1,5 @@
+#pragma once
+
+namespace owngrove {
+inline constexpr const char* kVersion = "@OWNGROVE_VERSION@";
+}
